@@ -28,7 +28,9 @@ export default async function Page() {
       <hr />
 
       <div>
-        <p className="mb-3 text-sm text-muted">{d.ask.emptyCorpus}</p>
+        <p className="mb-3 text-sm text-muted">
+          {docs.length === 0 ? d.ask.emptyCorpus : d.ask.sampleRefresh}
+        </p>
         <form action={loadSampleAction}>
           <button
             type="submit"

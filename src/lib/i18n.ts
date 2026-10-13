@@ -31,6 +31,7 @@ const en = {
     emptyCorpus: "No documents yet. Add sources or load the sample handbook to get started.",
     corpusReady: "{chunks} chunks indexed across {docs} documents.",
     sampleButton: "Load sample handbook",
+    sampleRefresh: "Reload the sample handbook.",
     needsKey:
       "Set OPENAI_API_KEY to ask questions. Browsing sources works without a key.",
   },
@@ -112,6 +113,7 @@ const fr: Dictionary = {
     emptyCorpus: "Aucun document. Ajoutez des sources ou chargez le guide d'exemple pour commencer.",
     corpusReady: "{chunks} extraits indexés dans {docs} documents.",
     sampleButton: "Charger le guide d'exemple",
+    sampleRefresh: "Recharger le guide d'exemple.",
     needsKey:
       "Définissez OPENAI_API_KEY pour poser des questions. La navigation fonctionne sans clé.",
   },

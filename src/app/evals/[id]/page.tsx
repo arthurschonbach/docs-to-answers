@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getDictionary, formatDateTime } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
 import { getEvalResults, getEvalRun } from "@/lib/db";
+import { ABSTAIN_MARKER } from "@/lib/llm";
 import { btnGhost } from "@/components/ui";
 
 export default async function Page({ params }: PageProps<"/evals/[id]">) {
@@ -48,7 +49,9 @@ export default async function Page({ params }: PageProps<"/evals/[id]">) {
                 </span>
               </div>
               <p className="mt-1 whitespace-pre-wrap text-muted">
-                {r.answer.slice(0, 400)}
+                {r.answer.trim() === ABSTAIN_MARKER
+                  ? d.ask.abstained
+                  : r.answer.slice(0, 400)}
               </p>
               {cited.length > 0 && (
                 <p className="mt-1 text-xs text-muted">
