@@ -19,6 +19,15 @@ const en = {
     questionPlaceholder: "What is the refund policy?",
     submit: "Ask",
     submitting: "Searching…",
+    searching: "Searching the corpus…",
+    answering: "Answering…",
+    considered: "{n} excerpts considered",
+    citedLabel: "Sources cited",
+    abstained: "Not covered by these documents.",
+    askFailed: "Answering failed. Try again.",
+    emptyQuestion: "Type a question first.",
+    retry: "Retry",
+    savedLink: "Saved to history →",
     emptyCorpus: "No documents yet. Add sources or load the sample handbook to get started.",
     corpusReady: "{chunks} chunks indexed across {docs} documents.",
     sampleButton: "Load sample handbook",
@@ -49,6 +58,9 @@ const en = {
   history: {
     title: "History",
     empty: "No questions asked yet.",
+    back: "← History",
+    abstainedBadge: "not in docs",
+    citationsCount: "{n} citations",
   },
   evals: {
     title: "Evals",
@@ -79,6 +91,15 @@ const fr: Dictionary = {
     questionPlaceholder: "Quelle est la politique de remboursement ?",
     submit: "Poser",
     submitting: "Recherche…",
+    searching: "Recherche dans le corpus…",
+    answering: "Réponse en cours…",
+    considered: "{n} extraits examinés",
+    citedLabel: "Sources citées",
+    abstained: "Non couvert par ces documents.",
+    askFailed: "Échec de la réponse. Réessayez.",
+    emptyQuestion: "Tapez d'abord une question.",
+    retry: "Réessayer",
+    savedLink: "Enregistré dans l'historique →",
     emptyCorpus: "Aucun document. Ajoutez des sources ou chargez le guide d'exemple pour commencer.",
     corpusReady: "{chunks} extraits indexés dans {docs} documents.",
     sampleButton: "Charger le guide d'exemple",
@@ -109,6 +130,9 @@ const fr: Dictionary = {
   history: {
     title: "Historique",
     empty: "Aucune question posée.",
+    back: "← Historique",
+    abstainedBadge: "hors docs",
+    citationsCount: "{n} citations",
   },
   evals: {
     title: "Évals",
@@ -136,4 +160,16 @@ export function format(
   values: Record<string, string | number>,
 ): string {
   return template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ""));
+}
+
+export function localeTag(locale: Locale): string {
+  return locale === "fr" ? "fr-FR" : "en-US";
+}
+
+export function formatDateTime(value: string | Date, locale: Locale): string {
+  return new Intl.DateTimeFormat(localeTag(locale), {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  }).format(typeof value === "string" ? new Date(value) : value);
 }

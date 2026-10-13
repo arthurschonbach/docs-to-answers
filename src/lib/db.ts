@@ -71,6 +71,10 @@ function createDb(): Database.Database {
 const globalForDb = globalThis as unknown as { __dtaDb?: Database.Database };
 const db = globalForDb.__dtaDb ?? (globalForDb.__dtaDb = createDb());
 
+export function getDb(): Database.Database {
+  return db;
+}
+
 export interface DocumentRow {
   id: string;
   name: string;
@@ -162,6 +166,72 @@ export function addChunks(
 
 export function deleteDocument(id: string): void {
   db.prepare("DELETE FROM documents WHERE id = ?").run(id);
+}
+
+export interface CitedChunk {
+  n: number;
+  chunkId: string;
+  docName: string;
+  excerpt: string;
+}
+
+export interface QaRow {
+  id: string;
+  question: string;
+  answer: string;
+  cited_chunk_ids: string;
+  model: string | null;
+  latency_ms: number | null;
+  created_at: string;
+}
+
+export function saveQa(input: {
+  question: string;
+  answer: string;
+  cited: CitedChunk[];
+  model: string | null;
+  latencyMs: number | null;
+}): string {
+  const id = crypto.randomUUID();
+  db.prepare(
+    "INSERT INTO qa_pairs (id, question, answer, cited_chunk_ids, model, latency_ms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  ).run(
+    id,
+    input.question,
+    input.answer,
+    JSON.stringify(input.cited),
+    input.model,
+    input.latencyMs,
+    new Date().toISOString(),
+  );
+  return id;
+}
+
+export function listQa(): QaRow[] {
+  return db
+    .prepare("SELECT * FROM qa_pairs ORDER BY created_at DESC")
+    .all() as QaRow[];
+}
+
+export function getQa(id: string): QaRow | undefined {
+  return db.prepare("SELECT * FROM qa_pairs WHERE id = ?").get(id) as
+    | QaRow
+    | undefined;
+}
+
+export function parseCited(value: string): CitedChunk[] {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (c): c is CitedChunk =>
+        typeof c === "object" &&
+        c !== null &&
+        typeof (c as CitedChunk).docName === "string",
+    );
+  } catch {
+    return [];
+  }
 }
 
 export function deleteSampleDocuments(): void {

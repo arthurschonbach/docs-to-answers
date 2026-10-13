@@ -1,0 +1,65 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { getDictionary, formatDateTime } from "@/lib/i18n";
+import { getLocale } from "@/lib/locale";
+import { getQa, parseCited } from "@/lib/db";
+import { ABSTAIN_MARKER } from "@/lib/llm";
+import { EmptyState, btnGhost } from "@/components/ui";
+
+export default async function Page({ params }: PageProps<"/history/[id]">) {
+  const { id } = await params;
+  const qa = getQa(id);
+  if (!qa) notFound();
+
+  const locale = await getLocale();
+  const d = getDictionary(locale);
+  const abstained = qa.answer.trim() === ABSTAIN_MARKER;
+  const cited = parseCited(qa.cited_chunk_ids);
+
+  return (
+    <div className="space-y-8">
+      <div className="space-y-3">
+        <Link href="/history" className={btnGhost}>
+          {d.history.back}
+        </Link>
+        <h1 className="text-2xl font-semibold tracking-tight">{qa.question}</h1>
+        <p className="text-sm text-muted">
+          {formatDateTime(qa.created_at, locale)}
+          {qa.model ? ` · ${qa.model}` : ""}
+        </p>
+      </div>
+
+      {abstained ? (
+        <EmptyState>{d.ask.abstained}</EmptyState>
+      ) : (
+        <div className="space-y-4">
+          <div className="rounded-md border border-border p-4 sm:p-5">
+            <p className="text-sm leading-relaxed whitespace-pre-wrap">
+              {qa.answer}
+            </p>
+          </div>
+          {cited.length > 0 && (
+            <div>
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
+                {d.ask.citedLabel}
+              </h2>
+              <ul className="space-y-2">
+                {cited.map((c) => (
+                  <li
+                    key={c.chunkId}
+                    className="rounded-md border border-border p-3 text-sm"
+                  >
+                    <p className="text-xs font-medium text-muted">
+                      [{c.n}] · {c.docName}
+                    </p>
+                    <p className="mt-1 text-muted">{c.excerpt}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
