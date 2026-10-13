@@ -88,6 +88,82 @@ export function listDocuments(): DocumentRow[] {
     .all() as DocumentRow[];
 }
 
+export function createDocument(input: {
+  name: string;
+  kind: string;
+  sourceUrl: string | null;
+}): DocumentRow {
+  const now = new Date().toISOString();
+  const row: DocumentRow = {
+    id: crypto.randomUUID(),
+    name: input.name,
+    kind: input.kind,
+    source_url: input.sourceUrl,
+    status: "processing",
+    chunk_count: 0,
+    error: null,
+    created_at: now,
+  };
+  db.prepare(
+    "INSERT INTO documents (id, name, kind, source_url, status, chunk_count, error, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  ).run(
+    row.id,
+    row.name,
+    row.kind,
+    row.source_url,
+    row.status,
+    row.chunk_count,
+    row.error,
+    row.created_at,
+  );
+  return row;
+}
+
+export function setDocumentStatus(
+  id: string,
+  status: string,
+  error: string | null = null,
+): void {
+  db.prepare("UPDATE documents SET status = ?, error = ? WHERE id = ?").run(
+    status,
+    error,
+    id,
+  );
+}
+
+export function setDocumentChunkCount(id: string, count: number): void {
+  db.prepare("UPDATE documents SET chunk_count = ? WHERE id = ?").run(
+    count,
+    id,
+  );
+}
+
+export function addChunks(
+  chunks: Array<{
+    documentId: string;
+    ord: number;
+    text: string;
+    embedding: Buffer;
+    tokens: number;
+  }>,
+): void {
+  const stmt = db.prepare(
+    "INSERT INTO chunks (id, document_id, ord, text, embedding, tokens) VALUES (?, ?, ?, ?, ?, ?)",
+  );
+  const insertMany = db.transaction(
+    (rows: typeof chunks) => {
+      for (const c of rows) {
+        stmt.run(crypto.randomUUID(), c.documentId, c.ord, c.text, c.embedding, c.tokens);
+      }
+    },
+  );
+  insertMany(chunks);
+}
+
+export function deleteDocument(id: string): void {
+  db.prepare("DELETE FROM documents WHERE id = ?").run(id);
+}
+
 export function countChunks(): number {
   const row = db.prepare("SELECT COUNT(*) AS n FROM chunks").get() as {
     n: number;

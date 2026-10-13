@@ -20,6 +20,7 @@ const en = {
     submit: "Ask",
     submitting: "Searching…",
     emptyCorpus: "No documents yet. Add sources or load the sample handbook to get started.",
+    corpusReady: "{chunks} chunks indexed across {docs} documents.",
     sampleButton: "Load sample handbook",
     needsKey:
       "Set OPENAI_API_KEY to ask questions. Browsing sources works without a key.",
@@ -28,10 +29,17 @@ const en = {
     title: "Sources",
     description: "Documents the assistant is allowed to cite.",
     empty: "No documents yet.",
-    uploadLabel: "Upload (.md, .txt, .pdf)",
+    uploadLabel: "Upload (.md, .txt)",
     urlLabel: "Or import from URL",
     urlPlaceholder: "https://…",
     import: "Import",
+    submit: "Ingest document",
+    submitting: "Ingesting…",
+    imported: "Imported",
+    emptyFile: "Please choose a non-empty file.",
+    unsupported: "Only .md and .txt files for now (PDF and URLs next).",
+    tooBig: "File is too large (500k characters max).",
+    failed: "Ingest failed. Try again.",
     delete: "Delete",
   },
   history: {
@@ -68,6 +76,7 @@ const fr: Dictionary = {
     submit: "Poser",
     submitting: "Recherche…",
     emptyCorpus: "Aucun document. Ajoutez des sources ou chargez le guide d'exemple pour commencer.",
+    corpusReady: "{chunks} extraits indexés dans {docs} documents.",
     sampleButton: "Charger le guide d'exemple",
     needsKey:
       "Définissez OPENAI_API_KEY pour poser des questions. La navigation fonctionne sans clé.",
@@ -76,10 +85,17 @@ const fr: Dictionary = {
     title: "Sources",
     description: "Documents que l'assistant est autorisé à citer.",
     empty: "Aucun document.",
-    uploadLabel: "Importer (.md, .txt, .pdf)",
+    uploadLabel: "Importer (.md, .txt)",
     urlLabel: "Ou importer depuis une URL",
     urlPlaceholder: "https://…",
     import: "Importer",
+    submit: "Ingérer le document",
+    submitting: "Ingestion…",
+    imported: "Importé",
+    emptyFile: "Choisissez un fichier non vide.",
+    unsupported: "Uniquement .md et .txt pour l'instant (PDF et URLs ensuite).",
+    tooBig: "Fichier trop volumineux (500 000 caractères max).",
+    failed: "Échec de l'ingestion. Réessayez.",
     delete: "Supprimer",
   },
   history: {
@@ -105,4 +121,11 @@ export function getDictionary(locale: Locale): Dictionary {
 
 export function normalizeLocale(value: string | undefined | null): Locale {
   return value === "fr" ? "fr" : "en";
+}
+
+export function format(
+  template: string,
+  values: Record<string, string | number>,
+): string {
+  return template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ""));
 }

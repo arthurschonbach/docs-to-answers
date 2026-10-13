@@ -1,33 +1,39 @@
-import { getDictionary } from "@/lib/i18n";
+import { getDictionary, format } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
-import { countChunks } from "@/lib/db";
+import { countChunks, listDocuments } from "@/lib/db";
+import { loadSampleAction } from "@/lib/actions";
 import { EmptyState, PageHeader } from "@/components/ui";
 
 export default async function Page() {
-  const d = getDictionary(await getLocale());
+  const locale = await getLocale();
+  const d = getDictionary(locale);
+  const docs = listDocuments();
   const chunks = countChunks();
 
   return (
     <div className="space-y-10">
       <PageHeader title={d.ask.title} description={d.ask.description} />
 
-      {chunks === 0 ? (
+      {docs.length === 0 ? (
         <EmptyState>{d.ask.emptyCorpus}</EmptyState>
       ) : (
-        <p className="text-sm text-muted">{chunks} chunks indexed.</p>
+        <p className="rounded-md border border-border bg-surface/60 px-4 py-3 text-sm text-muted">
+          {format(d.ask.corpusReady, { chunks, docs: docs.length })}
+        </p>
       )}
 
       <hr />
 
       <div>
         <p className="mb-3 text-sm text-muted">{d.ask.emptyCorpus}</p>
-        <button
-          type="button"
-          disabled
-          className="inline-flex h-9 cursor-not-allowed items-center rounded-md border border-border bg-background px-3 text-sm text-muted opacity-50"
-        >
-          {d.ask.sampleButton} (milestone 2)
-        </button>
+        <form action={loadSampleAction}>
+          <button
+            type="submit"
+            className="inline-flex h-9 items-center rounded-md border border-border bg-background px-3 text-sm text-muted transition-colors hover:border-muted hover:text-foreground cursor-pointer"
+          >
+            {d.ask.sampleButton}
+          </button>
+        </form>
       </div>
     </div>
   );
