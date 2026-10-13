@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import Link from "next/link";
-import { UploadForm } from "@/components/UploadForm";
+import { UploadForm, UrlImportForm } from "@/components/UploadForm";
 import { deleteDocumentAction } from "@/lib/actions";
 import { listDocuments } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n";
@@ -39,7 +39,12 @@ export default async function Page() {
 
 async function UploadSection() {
   await connection();
-  return <UploadForm />;
+  return (
+    <div className="space-y-8">
+      <UploadForm />
+      <UrlImportForm />
+    </div>
+  );
 }
 
 async function DocumentsList() {

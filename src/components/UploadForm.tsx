@@ -1,15 +1,21 @@
 "use client";
 
 import { useActionState } from "react";
-import { uploadDocumentAction, type FormState } from "@/lib/actions";
+import {
+  importUrlAction,
+  uploadDocumentAction,
+  type FormState,
+} from "@/lib/actions";
 import { useI18n } from "./LocaleProvider";
 import { btnPrimary, inputLargeClass, labelClass } from "./ui";
+
+const IDLE: FormState = { error: null, notice: null };
 
 export function UploadForm() {
   const { d } = useI18n();
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     uploadDocumentAction,
-    { error: null, notice: null },
+    IDLE,
   );
 
   return (
@@ -22,7 +28,7 @@ export function UploadForm() {
           id="file"
           name="file"
           type="file"
-          accept=".md,.markdown,.txt,text/plain"
+          accept=".md,.markdown,.txt,.pdf,text/plain"
           className={`${inputLargeClass} pt-2`}
           required
         />
@@ -33,6 +39,40 @@ export function UploadForm() {
 
       <button type="submit" className={btnPrimary} disabled={pending}>
         {pending ? d.sources.submitting : d.sources.submit}
+      </button>
+    </form>
+  );
+}
+
+export function UrlImportForm() {
+  const { d } = useI18n();
+  const [state, formAction, pending] = useActionState<FormState, FormData>(
+    importUrlAction,
+    IDLE,
+  );
+
+  return (
+    <form action={formAction} className="space-y-4">
+      <div>
+        <label className={labelClass} htmlFor="url">
+          {d.sources.urlLabel}
+        </label>
+        <input
+          id="url"
+          name="url"
+          type="url"
+          inputMode="url"
+          className={inputLargeClass}
+          placeholder={d.sources.urlPlaceholder}
+          required
+        />
+      </div>
+
+      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      {state.notice && <p className="text-sm text-muted">{state.notice}</p>}
+
+      <button type="submit" className={btnPrimary} disabled={pending}>
+        {pending ? d.sources.urlSubmitting : d.sources.urlSubmit}
       </button>
     </form>
   );

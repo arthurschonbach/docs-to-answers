@@ -4,7 +4,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { deleteDocument } from "./db";
+import { deleteDocument, deleteSampleDocuments } from "./db";
+import { extractPdfText, extractUrlText } from "./extract";
 import { getDictionary } from "./i18n";
 import { getLocale } from "./locale";
 import { ingestDocument } from "./ingest";
@@ -26,10 +27,26 @@ export async function uploadDocumentAction(
     return { error: d.sources.emptyFile, notice: null };
   }
   const name = file.name || "upload";
-  if (!/\.(md|markdown|txt)$/i.test(name) && file.type !== "text/plain") {
+  const lower = name.toLowerCase();
+  const isPdf = lower.endsWith(".pdf");
+  const isText =
+    /\.md$|\.markdown$|\.txt$/i.test(name) || file.type === "text/plain";
+  if (!isPdf && !isText) {
     return { error: d.sources.unsupported, notice: null };
   }
-  const text = (await file.text()).trim();
+
+  let text: string;
+  if (isPdf) {
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      text = (await extractPdfText(bytes)).trim();
+    } catch (error) {
+      console.error("PDF extraction failed:", error);
+      return { error: d.sources.failed, notice: null };
+    }
+  } else {
+    text = (await file.text()).trim();
+  }
   if (!text) {
     return { error: d.sources.emptyFile, notice: null };
   }
@@ -51,7 +68,54 @@ export async function uploadDocumentAction(
   }
 }
 
+export async function importUrlAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const d = getDictionary(await getLocale());
+  const raw = String(formData.get("url") ?? "").trim();
+  if (!raw) {
+    return { error: d.sources.invalidUrl, notice: null };
+  }
+
+  let title: string;
+  let text: string;
+  try {
+    ({ title, text } = await extractUrlText(raw));
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "fetch-failed";
+    if (reason === "invalid-url") {
+      return { error: d.sources.invalidUrl, notice: null };
+    }
+    return { error: d.sources.fetchFailed, notice: null };
+  }
+  if (!text || text.length > MAX_CHARS) {
+    return {
+      error: !text ? d.sources.emptyFile : d.sources.tooBig,
+      notice: null,
+    };
+  }
+
+  try {
+    const result = await ingestDocument({
+      name: title,
+      kind: "url",
+      sourceUrl: raw,
+      text,
+    });
+    revalidatePath("/sources");
+    revalidatePath("/");
+    return {
+      error: null,
+      notice: `${d.sources.imported}: ${title} (${result.chunks})`,
+    };
+  } catch {
+    revalidatePath("/sources");
+    return { error: d.sources.failed, notice: null };
+  }
+}
 export async function loadSampleAction(): Promise<void> {
+  deleteSampleDocuments();
   const dir = path.join(process.cwd(), "data", "sample-docs");
   const names = fs
     .readdirSync(dir)

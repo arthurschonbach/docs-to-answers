@@ -164,6 +164,10 @@ export function deleteDocument(id: string): void {
   db.prepare("DELETE FROM documents WHERE id = ?").run(id);
 }
 
+export function deleteSampleDocuments(): void {
+  db.prepare("DELETE FROM documents WHERE kind = 'sample'").run();
+}
+
 export function countChunks(): number {
   const row = db.prepare("SELECT COUNT(*) AS n FROM chunks").get() as {
     n: number;
