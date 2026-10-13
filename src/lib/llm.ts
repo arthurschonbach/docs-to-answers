@@ -50,6 +50,77 @@ interface OpenRouterStreamParams
   reasoning?: { enabled?: boolean };
 }
 
+interface OpenRouterChatParams
+  extends OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming {
+  reasoning?: { enabled?: boolean };
+}
+
+export interface GeneratedAnswer {
+  text: string;
+  model: string;
+}
+
+export interface ParsedCitation {
+  n: number;
+  chunkId: string;
+  docName: string;
+  excerpt: string;
+}
+
+/** Non-streaming answer for evals and other batch uses. */
+export async function generateAnswer(
+  question: string,
+  chunks: RankedChunk[],
+): Promise<GeneratedAnswer> {
+  const base = {
+    model: MODEL,
+    temperature: 0.2,
+    max_tokens: 800,
+    messages: [
+      { role: "system" as const, content: SYSTEM_PROMPT },
+      { role: "user" as const, content: buildUserPrompt(question, chunks) },
+    ],
+  };
+  let completion: OpenAI.Chat.Completions.ChatCompletion;
+  try {
+    completion = await getClient().chat.completions.create({
+      ...base,
+      reasoning: { enabled: false },
+    } as OpenRouterChatParams);
+  } catch {
+    completion = await getClient().chat.completions.create(base);
+  }
+  return {
+    text: completion.choices[0]?.message.content ?? "",
+    model: completion.model ?? MODEL,
+  };
+}
+
+/** Map [n] markers in an answer to the ranked chunks. Invalid ids ignored. */
+export function pickCitations(
+  answer: string,
+  chunks: RankedChunk[],
+  excerptOf: (text: string) => string,
+): ParsedCitation[] {
+  const seen = new Set<number>();
+  const out: ParsedCitation[] = [];
+  for (const match of answer.matchAll(/\[(\d+)\]/g)) {
+    const n = Number(match[1]);
+    if (!Number.isInteger(n) || n < 1 || n > chunks.length || seen.has(n)) {
+      continue;
+    }
+    seen.add(n);
+    const chunk = chunks[n - 1];
+    out.push({
+      n,
+      chunkId: chunk.chunkId,
+      docName: chunk.docName,
+      excerpt: excerptOf(chunk.text),
+    });
+  }
+  return out.sort((a, b) => a.n - b.n);
+}
+
 export async function* streamAnswer(
   question: string,
   chunks: RankedChunk[],

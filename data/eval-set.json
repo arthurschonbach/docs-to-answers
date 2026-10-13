@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "corpus": "sample handbook (policies.md, handbook.md)",
+  "items": [
+    {
+      "id": "refund-window",
+      "question": "What is the refund policy?",
+      "expectDoc": "policies.md",
+      "expectKeywords": ["30-day"]
+    },
+    {
+      "id": "refund-how",
+      "question": "How do I request a refund?",
+      "expectDoc": "policies.md",
+      "expectKeywords": ["support@acme.example"]
+    },
+    {
+      "id": "cancel-subscription",
+      "question": "If I cancel my subscription, do I get a refund automatically?",
+      "expectDoc": "policies.md",
+      "expectKeywords": ["billing"]
+    },
+    {
+      "id": "shipping-france",
+      "question": "How long does delivery take in France?",
+      "expectDoc": "policies.md",
+      "expectKeywords": ["business days"]
+    },
+    {
+      "id": "shipping-cost",
+      "question": "How much is shipping for a 30 euro order?",
+      "expectDoc": "policies.md",
+      "expectKeywords": ["4.90"]
+    },
+    {
+      "id": "support-hours",
+      "question": "When is support available?",
+      "expectDoc": "policies.md",
+      "expectKeywords": ["Monday", "Friday"]
+    },
+    {
+      "id": "pto-days",
+      "question": "How many days of paid time off do employees get?",
+      "expectDoc": "handbook.md",
+      "expectKeywords": ["30 days"]
+    },
+    {
+      "id": "pto-rollover",
+      "question": "Do unused vacation days roll over to next year?",
+      "expectDoc": "handbook.md",
+      "expectKeywords": ["do not roll over"]
+    },
+    {
+      "id": "onboarding-buddy",
+      "question": "What happens during onboarding for new joiners?",
+      "expectDoc": "handbook.md",
+      "expectKeywords": ["buddy"]
+    },
+    {
+      "id": "core-hours",
+      "question": "What are the core collaboration hours?",
+      "expectDoc": "handbook.md",
+      "expectKeywords": ["10:00"]
+    },
+    {
+      "id": "meeting-agenda",
+      "question": "What is the rule about meeting agendas?",
+      "expectDoc": "handbook.md",
+      "expectKeywords": ["24 hours"]
+    },
+    {
+      "id": "late-refund",
+      "question": "I cancelled after 40 days, do I still get a refund?",
+      "expectDoc": "policies.md",
+      "expectKeywords": ["30-day"]
+    },
+    {
+      "id": "world-cup",
+      "question": "Who won the 1998 World Cup?",
+      "abstainExpected": true
+    },
+    {
+      "id": "ceo-name",
+      "question": "Who is the CEO of Acme Studio?",
+      "abstainExpected": true
+    },
+    {
+      "id": "support-phone",
+      "question": "What is the support phone number?",
+      "abstainExpected": true
+    }
+  ]
+}

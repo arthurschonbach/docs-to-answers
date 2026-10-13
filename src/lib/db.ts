@@ -234,6 +234,87 @@ export function parseCited(value: string): CitedChunk[] {
   }
 }
 
+export interface EvalRunRow {
+  id: string;
+  embedding_model: string;
+  model: string | null;
+  score: number;
+  total: number;
+  created_at: string;
+}
+
+export interface EvalResultRow {
+  id: string;
+  run_id: string;
+  question: string;
+  abstain_expected: number;
+  answer: string;
+  cited: string;
+  passed: number;
+}
+
+export function createEvalRun(input: {
+  embeddingModel: string;
+  model: string | null;
+  total: number;
+}): string {
+  const id = crypto.randomUUID();
+  db.prepare(
+    "INSERT INTO eval_runs (id, embedding_model, model, score, total, created_at) VALUES (?, ?, ?, 0, ?, ?)",
+  ).run(id, input.embeddingModel, input.model, input.total, new Date().toISOString());
+  return id;
+}
+
+export function addEvalResult(input: {
+  runId: string;
+  question: string;
+  abstainExpected: boolean;
+  answer: string;
+  cited: string[];
+  passed: boolean;
+}): void {
+  db.prepare(
+    "INSERT INTO eval_results (id, run_id, question, abstain_expected, answer, cited, passed) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  ).run(
+    crypto.randomUUID(),
+    input.runId,
+    input.question,
+    input.abstainExpected ? 1 : 0,
+    input.answer,
+    JSON.stringify(input.cited),
+    input.passed ? 1 : 0,
+  );
+}
+
+export function finishEvalRun(id: string, score: number): void {
+  db.prepare("UPDATE eval_runs SET score = ? WHERE id = ?").run(score, id);
+}
+
+export function listEvalRuns(): EvalRunRow[] {
+  return db
+    .prepare("SELECT * FROM eval_runs ORDER BY created_at DESC")
+    .all() as EvalRunRow[];
+}
+
+export function getEvalRun(id: string): EvalRunRow | undefined {
+  return db.prepare("SELECT * FROM eval_runs WHERE id = ?").get(id) as
+    | EvalRunRow
+    | undefined;
+}
+
+export function getEvalResults(runId: string): EvalResultRow[] {
+  return db
+    .prepare("SELECT * FROM eval_results WHERE run_id = ? ORDER BY rowid")
+    .all(runId) as EvalResultRow[];
+}
+
+export function countSampleDocuments(): number {
+  const row = db
+    .prepare("SELECT COUNT(*) AS n FROM documents WHERE kind = 'sample' AND status = 'ready'")
+    .get() as { n: number };
+  return row.n;
+}
+
 export function deleteSampleDocuments(): void {
   db.prepare("DELETE FROM documents WHERE kind = 'sample'").run();
 }

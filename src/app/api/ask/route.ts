@@ -1,6 +1,6 @@
 import { getDb, saveQa, type CitedChunk } from "@/lib/db";
-import { ABSTAIN_MARKER, hasChatKey, streamAnswer } from "@/lib/llm";
-import { excerpt, retrieveChunks, type RankedChunk } from "@/lib/retrieval";
+import { ABSTAIN_MARKER, hasChatKey, pickCitations, streamAnswer } from "@/lib/llm";
+import { excerpt, retrieveChunks } from "@/lib/retrieval";
 
 type OutEvent =
   | { type: "meta"; chunks: Array<{ n: number; docName: string; excerpt: string; score: number }> }
@@ -11,26 +11,6 @@ type OutEvent =
 
 function line(event: OutEvent): string {
   return JSON.stringify(event) + "\n";
-}
-
-function pickCitations(answer: string, chunks: RankedChunk[]): CitedChunk[] {
-  const seen = new Set<number>();
-  const out: CitedChunk[] = [];
-  for (const match of answer.matchAll(/\[(\d+)\]/g)) {
-    const n = Number(match[1]);
-    if (!Number.isInteger(n) || n < 1 || n > chunks.length || seen.has(n)) {
-      continue;
-    }
-    seen.add(n);
-    const chunk = chunks[n - 1];
-    out.push({
-      n,
-      chunkId: chunk.chunkId,
-      docName: chunk.docName,
-      excerpt: excerpt(chunk.text),
-    });
-  }
-  return out.sort((a, b) => a.n - b.n);
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -106,7 +86,7 @@ export async function POST(request: Request): Promise<Response> {
           });
           send({ type: "abstain", qaId });
         } else {
-          const citations = pickCitations(text, chunks);
+          const citations: CitedChunk[] = pickCitations(text, chunks, excerpt);
           const qaId = saveQa({
             question,
             answer: text,
