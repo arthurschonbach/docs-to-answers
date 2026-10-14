@@ -168,6 +168,10 @@ export function deleteDocument(id: string): void {
   db.prepare("DELETE FROM documents WHERE id = ?").run(id);
 }
 
+export function deleteQa(id: string): void {
+  db.prepare("DELETE FROM qa_pairs WHERE id = ?").run(id);
+}
+
 export interface CitedChunk {
   n: number;
   chunkId: string;

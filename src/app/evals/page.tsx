@@ -12,7 +12,7 @@ export default async function Page() {
   const d = getDictionary(await getLocale());
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <PageHeader title={d.evals.title} description={d.evals.description} />
 
       <Suspense fallback={null}>

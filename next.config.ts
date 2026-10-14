@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
-  // pdf.js needs real Node module resolution (worker file) — don't bundle it.
+  // pdf.js needs real Node module resolution (worker file) - don't bundle it.
   serverExternalPackages: ["pdfjs-dist"],
   turbopack: {
     rules: {

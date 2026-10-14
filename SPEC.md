@@ -1,10 +1,10 @@
-# docs-to-answers — Spec
+# docs-to-answers - Spec
 
 ## 1. One-liner
 
 Upload company docs (PDF / markdown / URLs) and ask questions. Every answer
 carries **citations to the exact source chunks**, and the assistant says
-"not in the docs" when nothing matches — instead of hallucinating.
+"not in the docs" when nothing matches - instead of hallucinating.
 
 Portfolio role: project #2 of 3. #1 (`meeting-to-actions`) shows *structured
 extraction + streaming UX*. This one shows *retrieval*: chunking, embeddings,
@@ -44,13 +44,13 @@ vector search, grounded generation, and evals.
 - Progress UI: per-document status (queued → processing → ready / failed),
   chunk counts. Re-ingest replaces a document's chunks (no duplicates).
 - Sample corpus button seeds the fake handbook in one click (no API key
-  needed for the *seeded chunks* — see §9).
+  needed for the *seeded chunks* - see §9).
 
 ### 4.2 Ask
 
 - Input: question box. Output: streamed markdown answer + citation chips.
 - Retrieval: embed question → top-k (default k=6) chunks by cosine similarity
-  → drop chunks below a similarity floor (default 0.25, tunable in UI? No —
+  → drop chunks below a similarity floor (default 0.25, tunable in UI? No -
   keep it a constant in v1, show it in README).
 - Generation prompt: system instruction forces (a) answer ONLY from provided
   chunks, (b) cite chunk ids inline as `[n]`, (c) abstain when insufficient.
@@ -66,7 +66,7 @@ vector search, grounded generation, and evals.
 - "Run evals" executes all questions (no streaming, sequential to be kind
   to free-tier rate limits), then scores:
   - Answerable: expected chunk cited? (judged by id overlap, no LLM judge
-    in v1 — deterministic and explainable.)
+    in v1 - deterministic and explainable.)
   - Unanswerable: did it abstain? (string-match on abstention marker.)
 - Results table: per-question pass/fail + the answer + citations. Overall
   score header. Stored runs (keep last N) so the demo shows history.
@@ -98,16 +98,16 @@ time. Fine for the demo scale; README states the swap path.
 
 ## 7. API routes
 
-- `POST /api/documents` — upload / URL ingest (returns doc id; processing
+- `POST /api/documents` - upload / URL ingest (returns doc id; processing
   inline, corpora are small).
 - `DELETE /api/documents/[id]`
-- `POST /api/ask` — SSE stream: `{type:"token"}…`, final `{type:"done",
+- `POST /api/ask` - SSE stream: `{type:"token"}…`, final `{type:"done",
   answer, citations:[{chunkId, docName, excerpt}]}` or `{type:"abstain"}`.
-- `POST /api/evals/run` — runs full set, returns run id (progress via
+- `POST /api/evals/run` - runs full set, returns run id (progress via
   polling `GET /api/evals/runs` or simple sequential UI updates; keep it
   simple: streaming progress lines like #1's generation panel if cheap,
   else a spinner + final table).
-- `POST /api/sample` — seeds the fake handbook (works without API key by
+- `POST /api/sample` - seeds the fake handbook (works without API key by
   shipping precomputed chunks + embeddings? See §9).
 
 ## 8. Retrieval + generation defaults
@@ -161,8 +161,8 @@ them (citation chip variant, chunk highlight style).
 
 ## 13. Open questions (decide before/with milestone 1)
 
-1. Embedding model availability on OpenRouter free tier — verify, else
+1. Embedding model availability on OpenRouter free tier - verify, else
    document a paid default + keep the interface swappable.
 2. PDF parsing lib (`pdftotext` system dep vs pure-JS `pdfjs-dist`).
    Prefer pure-JS for one-command setup.
-3. Precomputed sample embeddings (keyless demo) — nice-to-have, time-box it.
+3. Precomputed sample embeddings (keyless demo) - nice-to-have, time-box it.

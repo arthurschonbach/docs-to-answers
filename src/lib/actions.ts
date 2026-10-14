@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { deleteDocument, deleteSampleDocuments } from "./db";
+import { deleteDocument, deleteQa, deleteSampleDocuments } from "./db";
 import { extractPdfText, extractUrlText } from "./extract";
 import { getDictionary } from "./i18n";
 import { getLocale } from "./locale";
@@ -134,4 +134,12 @@ export async function deleteDocumentAction(formData: FormData): Promise<void> {
   deleteDocument(id);
   revalidatePath("/sources");
   revalidatePath("/");
+}
+
+export async function deleteQaAction(formData: FormData): Promise<void> {
+  const id = String(formData.get("qa_id") ?? "");
+  if (!id) return;
+  deleteQa(id);
+  revalidatePath("/history");
+  redirect("/history");
 }

@@ -1,12 +1,24 @@
+import { Suspense } from "react";
+import { connection } from "next/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDictionary, formatDateTime } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
 import { getQa, parseCited } from "@/lib/db";
+import { deleteQaAction } from "@/lib/actions";
 import { ABSTAIN_MARKER } from "@/lib/llm";
-import { EmptyState, btnGhost } from "@/components/ui";
+import { EmptyState, btnDanger, btnGhost } from "@/components/ui";
 
 export default async function Page({ params }: PageProps<"/history/[id]">) {
+  return (
+    <Suspense fallback={null}>
+      <Detail params={params} />
+    </Suspense>
+  );
+}
+
+async function Detail({ params }: { params: Promise<{ id: string }> }) {
+  await connection();
   const { id } = await params;
   const qa = getQa(id);
   if (!qa) notFound();
@@ -22,11 +34,23 @@ export default async function Page({ params }: PageProps<"/history/[id]">) {
         <Link href="/history" className={btnGhost}>
           {d.history.back}
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">{qa.question}</h1>
-        <p className="text-sm text-muted">
-          {formatDateTime(qa.created_at, locale)}
-          {qa.model ? ` · ${qa.model}` : ""}
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {qa.question}
+            </h1>
+            <p className="mt-1.5 text-sm text-muted">
+              {formatDateTime(qa.created_at, locale)}
+              {qa.model ? ` · ${qa.model}` : ""}
+            </p>
+          </div>
+          <form action={deleteQaAction} className="shrink-0">
+            <input type="hidden" name="qa_id" value={qa.id} />
+            <button type="submit" className={btnDanger}>
+              {d.history.delete}
+            </button>
+          </form>
+        </div>
       </div>
 
       {abstained ? (

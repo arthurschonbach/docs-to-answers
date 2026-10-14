@@ -1,4 +1,4 @@
-# Acme Studio — Customer Policies
+# Acme Studio - Customer Policies
 
 ## Refund policy
 
@@ -7,7 +7,7 @@ email support@acme.example with your invoice number. Refunds are issued to
 the original payment method within 5 business days.
 
 Subscriptions can be cancelled at any time from the billing page. Cancelling
-stops future charges but does not automatically refund the current period —
+stops future charges but does not automatically refund the current period -
 request that separately if you are within the 30-day window.
 
 ## Shipping

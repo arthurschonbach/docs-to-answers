@@ -1,4 +1,4 @@
-# Acme Studio — Employee Handbook (excerpt)
+# Acme Studio - Employee Handbook (excerpt)
 
 ## Onboarding
 

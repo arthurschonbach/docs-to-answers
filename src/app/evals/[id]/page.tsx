@@ -1,12 +1,24 @@
+import { Suspense } from "react";
+import { connection } from "next/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDictionary, formatDateTime } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
 import { getEvalResults, getEvalRun } from "@/lib/db";
+import { loadEvalSet } from "@/lib/evals";
 import { ABSTAIN_MARKER } from "@/lib/llm";
 import { btnGhost } from "@/components/ui";
 
 export default async function Page({ params }: PageProps<"/evals/[id]">) {
+  return (
+    <Suspense fallback={null}>
+      <Detail params={params} />
+    </Suspense>
+  );
+}
+
+async function Detail({ params }: { params: Promise<{ id: string }> }) {
+  await connection();
   const { id } = await params;
   const run = getEvalRun(id);
   if (!run) notFound();
@@ -14,6 +26,17 @@ export default async function Page({ params }: PageProps<"/evals/[id]">) {
 
   const locale = await getLocale();
   const d = getDictionary(locale);
+
+  let expectations = new Map<
+    string,
+    { expectDoc?: string; expectKeywords?: string[]; abstainExpected?: boolean }
+  >();
+  try {
+    const set = loadEvalSet();
+    expectations = new Map(set.items.map((item) => [item.question, item]));
+  } catch {
+    // Eval set missing; show answers without expectations.
+  }
 
   return (
     <div className="space-y-8">
@@ -34,7 +57,7 @@ export default async function Page({ params }: PageProps<"/evals/[id]">) {
       <ul className="space-y-2">
         {results.map((r) => {
           const passed = r.passed === 1;
-          const cited: string[] = JSON.parse(r.cited || "[]");
+          const expected = expectations.get(r.question);
           return (
             <li
               key={r.id}
@@ -48,16 +71,18 @@ export default async function Page({ params }: PageProps<"/evals/[id]">) {
                   {passed ? d.evals.passed : d.evals.failed}
                 </span>
               </div>
+              {expected && (
+                <p className="mt-1 text-xs text-muted">
+                  {expected.abstainExpected
+                    ? d.evals.abstains
+                    : `${d.evals.expects} ${(expected.expectKeywords ?? []).join(", ")} · ${expected.expectDoc ?? ""}`}
+                </p>
+              )}
               <p className="mt-1 whitespace-pre-wrap text-muted">
                 {r.answer.trim() === ABSTAIN_MARKER
                   ? d.ask.abstained
                   : r.answer.slice(0, 400)}
               </p>
-              {cited.length > 0 && (
-                <p className="mt-1 text-xs text-muted">
-                  [{cited.join(", ")}]
-                </p>
-              )}
             </li>
           );
         })}

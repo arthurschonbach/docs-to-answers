@@ -8,11 +8,11 @@ abstention instead of a hallucination.
 
 Portfolio project **#2 of 3**. #1 (`meeting-to-actions`) shows structured
 extraction from transcripts; this one shows **retrieval**: chunking, local
-embeddings, vector search, grounded generation — and the part juniors
+embeddings, vector search, grounded generation - and the part juniors
 usually skip, **evals**.
 
 **Eval score: 14/15** on the bundled set (see [Evals](#evals)). The single
-miss is a real paraphrase drift, kept on purpose — seethe eval notes.
+miss is a real paraphrase drift, kept on purpose - seethe eval notes.
 
 ## Demo in 2 minutes
 
@@ -62,7 +62,7 @@ miss is a real paraphrase drift, kept on purpose — seethe eval notes.
 
 ## Evals
 
-`data/eval-set.json` — 15 fixed questions graded **deterministically, no
+`data/eval-set.json` - 15 fixed questions graded **deterministically, no
 LLM judge**:
 
 | Kind | Count | Rule |
@@ -77,12 +77,12 @@ Runs are stored with per-question detail.
 Current standing: **14/15**. The miss (`cancel-subscription`) is
 instructive: the doc says *"from the billing page"*, the model paraphrased
 it away, the grader caught it. Loosening the keyword would green the suite
-and teach nothing — it stays red until retrieval or prompting genuinely
+and teach nothing - it stays red until retrieval or prompting genuinely
 fixes it.
 
 ## Keys
 
-- **Embeddings are local** — no key, no cost, works offline. The model
+- **Embeddings are local** - no key, no cost, works offline. The model
   downloads once into `./data/models` (git-ignored).
 - **Answering + evals need a key**: copy `.env.example` to `.env`, set
   `OPENAI_API_KEY` (OpenRouter, free-tier keys work; default model is a
@@ -107,5 +107,5 @@ npm run lint
 npm run build
 ```
 
-Sample corpus lives in `data/sample-docs/` (fake "Acme Studio" handbook —
+Sample corpus lives in `data/sample-docs/` (fake "Acme Studio" handbook -
 the eval set is graded against it, so edit both together).

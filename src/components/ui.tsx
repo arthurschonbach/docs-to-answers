@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
-/* ——— Buttons: single source of truth (h-9 control height) ——— */
+/* --- Buttons: single source of truth (h-9 control height) --- */
 
 export const btnBase =
   "inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50";
@@ -30,7 +30,7 @@ export const btnAdd =
 export const btnRow =
   "inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-border px-2.5 text-xs text-muted transition-colors hover:border-muted hover:text-foreground cursor-pointer disabled:opacity-50";
 
-/* ——— Fields ——— */
+/* --- Fields --- */
 
 export const labelClass = "block text-sm font-medium mb-1.5";
 
@@ -46,7 +46,7 @@ export const areaClass =
 export const selectClass =
   "h-9 w-full min-w-0 rounded-md border border-border bg-background px-2.5 text-sm transition-colors focus:outline-none focus:border-accent";
 
-/* ——— Typography / layout ——— */
+/* --- Typography / layout --- */
 
 export function PageHeader({
   title,
