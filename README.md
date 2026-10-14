@@ -12,7 +12,7 @@ embeddings, vector search, grounded generation - and the part juniors
 usually skip, **evals**.
 
 **Eval score: 14/15** on the bundled set (see [Evals](#evals)). The single
-miss is a real paraphrase drift, kept on purpose - seethe eval notes.
+miss is a real paraphrase drift, kept on purpose - see the eval notes.
 
 ## Demo in 2 minutes
 
