@@ -89,6 +89,15 @@ fixes it.
   free one). Without it, ingest/search/browse all work; Ask and Evals show
   an honest notice instead of crashing.
 
+## Deploying (Vercel)
+
+- Set `OPENAI_API_KEY` in the project environment variables and redeploy.
+- The database lives in `/tmp` there (filesystem is read-only), so
+  history is ephemeral per invocation - the sample handbook is always
+  reloadable, which is the demo path.
+- First ingest downloads the ~90MB embedding model, so expect one slow
+  call on a cold instance; it stays cached while the instance is warm.
+
 ## Production-swap notes (deliberately not built)
 
 - Vector search: brute-force cosine → **pgvector** (or sqlite-vss) past
@@ -107,5 +116,6 @@ npm run lint
 npm run build
 ```
 
-Sample corpus lives in `data/sample-docs/` (fake "Acme Studio" handbook -
-the eval set is graded against it, so edit both together).
+Sample corpus is inlined in `src/lib/sample-docs.ts` (fake "Acme Studio"
+handbook, bundled so seeding works on read-only hosts) - the eval set is
+graded against its exact text, so edit both together.

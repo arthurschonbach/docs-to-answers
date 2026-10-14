@@ -5,7 +5,13 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   // pdf.js needs real Node module resolution (worker file) - don't bundle it.
-  serverExternalPackages: ["pdfjs-dist"],
+  // better-sqlite3 and the transformers/onnxruntime native bindings stay
+  // out of the bundle too (required on Vercel serverless).
+  serverExternalPackages: [
+    "pdfjs-dist",
+    "better-sqlite3",
+    "@huggingface/transformers",
+  ],
   turbopack: {
     rules: {
       "*.css": {

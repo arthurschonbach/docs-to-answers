@@ -2,6 +2,9 @@ import { getDb, saveQa, type CitedChunk } from "@/lib/db";
 import { ABSTAIN_MARKER, hasChatKey, pickCitations, streamAnswer } from "@/lib/llm";
 import { excerpt, retrieveChunks } from "@/lib/retrieval";
 
+// Research-grade streams run past short host defaults (Vercel Hobby).
+export const maxDuration = 60;
+
 type OutEvent =
   | { type: "meta"; chunks: Array<{ n: number; docName: string; excerpt: string; score: number }> }
   | { type: "token"; text: string }

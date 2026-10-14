@@ -1,7 +1,5 @@
 "use server";
 
-import fs from "node:fs";
-import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { deleteDocument, deleteQa, deleteSampleDocuments } from "./db";
@@ -9,6 +7,7 @@ import { extractPdfText, extractUrlText } from "./extract";
 import { getDictionary } from "./i18n";
 import { getLocale } from "./locale";
 import { ingestDocument } from "./ingest";
+import { SAMPLE_DOCS } from "./sample-docs";
 
 export interface FormState {
   error: string | null;
@@ -116,14 +115,10 @@ export async function importUrlAction(
 }
 export async function loadSampleAction(): Promise<void> {
   deleteSampleDocuments();
-  const dir = path.join(process.cwd(), "data", "sample-docs");
-  const names = fs
-    .readdirSync(dir)
-    .filter((n) => n.endsWith(".md"))
-    .sort();
-  for (const name of names) {
-    const text = fs.readFileSync(path.join(dir, name), "utf8");
-    await ingestDocument({ name, kind: "sample", text });
+  // Inlined in src/lib/sample-docs.ts (bundled at build time) instead of
+  // data/*.md files, so seeding works on read-only hosts (Vercel).
+  for (const doc of SAMPLE_DOCS) {
+    await ingestDocument({ name: doc.name, kind: "sample", text: doc.text });
   }
   redirect("/");
 }

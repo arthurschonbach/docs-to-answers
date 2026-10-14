@@ -16,6 +16,9 @@ import {
 } from "@/lib/llm";
 import { excerpt, retrieveChunks } from "@/lib/retrieval";
 
+// Eval suites run past short host defaults (Vercel Hobby).
+export const maxDuration = 60;
+
 type OutEvent =
   | { type: "item"; index: number; total: number; id: string; question: string; passed: boolean; detail: string; answer: string }
   | { type: "done"; runId: string; score: number; total: number }

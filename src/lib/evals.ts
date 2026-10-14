@@ -1,6 +1,5 @@
-import fs from "node:fs";
-import path from "node:path";
 import { z } from "zod";
+import evalSetFile from "../../data/eval-set.json";
 import { ABSTAIN_MARKER } from "./llm";
 
 const EvalItemSchema = z.object({
@@ -20,11 +19,8 @@ const EvalSetSchema = z.object({
 export type EvalItem = z.infer<typeof EvalItemSchema>;
 
 export function loadEvalSet(): { corpus: string; items: EvalItem[] } {
-  const raw = fs.readFileSync(
-    path.join(process.cwd(), "data", "eval-set.json"),
-    "utf8",
-  );
-  const parsed = EvalSetSchema.parse(JSON.parse(raw));
+  // Static import: bundled at build time, works on read-only hosts.
+  const parsed = EvalSetSchema.parse(evalSetFile);
   return { corpus: parsed.corpus, items: parsed.items };
 }
 

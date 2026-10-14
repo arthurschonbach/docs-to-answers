@@ -2,8 +2,12 @@ import path from "node:path";
 import { env, pipeline, type FeatureExtractionPipeline } from "@huggingface/transformers";
 
 // Local embeddings: no API key, no cost, works offline.
-// Model downloads once into ./data/models on first use.
-env.cacheDir = path.join(process.cwd(), "data", "models");
+// Model downloads once on first use — into ./data/models locally,
+// or /tmp on hosts with a read-only filesystem (Vercel). Cold starts
+// there re-download (~90MB), so the first ingest is slow.
+env.cacheDir = process.env.VERCEL
+  ? path.join("/tmp", "dta-models")
+  : path.join(process.cwd(), "data", "models");
 
 export const EMBEDDING_MODEL = "Xenova/all-MiniLM-L6-v2";
 export const EMBEDDING_DIMS = 384;
