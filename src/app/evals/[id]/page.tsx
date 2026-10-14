@@ -1,13 +1,12 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { getDictionary, formatDateTime } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
 import { getEvalResults, getEvalRun } from "@/lib/db";
 import { loadEvalSet } from "@/lib/evals";
 import { ABSTAIN_MARKER } from "@/lib/llm";
-import { btnGhost } from "@/components/ui";
+import { EmptyState, btnGhost } from "@/components/ui";
 
 export default async function Page({ params }: PageProps<"/evals/[id]">) {
   return (
@@ -21,11 +20,22 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
   await connection();
   const { id } = await params;
   const run = getEvalRun(id);
-  if (!run) notFound();
-  const results = getEvalResults(id);
 
   const locale = await getLocale();
   const d = getDictionary(locale);
+
+  // Same ephemeral-history note as the Q&A detail page.
+  if (!run) {
+    return (
+      <div className="space-y-8">
+        <Link href="/evals" className={btnGhost}>
+          {d.evals.back}
+        </Link>
+        <EmptyState>{`${d.evals.notFound} — ${d.evals.notFoundHint}`}</EmptyState>
+      </div>
+    );
+  }
+  const results = getEvalResults(id);
 
   let expectations = new Map<
     string,

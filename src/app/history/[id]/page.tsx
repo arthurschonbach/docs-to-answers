@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { getDictionary, formatDateTime } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
 import { getQa, parseCited } from "@/lib/db";
@@ -21,10 +20,22 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
   await connection();
   const { id } = await params;
   const qa = getQa(id);
-  if (!qa) notFound();
 
   const locale = await getLocale();
   const d = getDictionary(locale);
+
+  // Demo deployments (Vercel) keep sqlite in instance-local /tmp: an entry
+  // saved on one instance 404s on another. Explain instead of a dead end.
+  if (!qa) {
+    return (
+      <div className="space-y-8">
+        <Link href="/history" className={btnGhost}>
+          {d.history.back}
+        </Link>
+        <EmptyState>{`${d.history.notFound} — ${d.history.notFoundHint}`}</EmptyState>
+      </div>
+    );
+  }
   const abstained = qa.answer.trim() === ABSTAIN_MARKER;
   const cited = parseCited(qa.cited_chunk_ids);
 

@@ -64,6 +64,8 @@ const en = {
     delete: "Delete",
     abstainedBadge: "not in docs",
     citationsCount: "{n} citations",
+    notFound: "Entry not found",
+    notFoundHint: "Demo history is ephemeral — instances don't share it. Ask a new question to see a full entry.",
   },
   evals: {
     title: "Evals",
@@ -83,6 +85,8 @@ const en = {
     pastRuns: "Past runs",
     noRuns: "No runs yet.",
     back: "← Evals",
+    notFound: "Run not found",
+    notFoundHint: "Demo history is ephemeral — instances don't share it. Run the evals to see a full report.",
   },
   common: { none: "None." },
 };
@@ -150,6 +154,8 @@ const fr: Dictionary = {
     delete: "Supprimer",
     abstainedBadge: "hors docs",
     citationsCount: "{n} citations",
+    notFound: "Entrée introuvable",
+    notFoundHint: "L'historique de démo est éphémère — les instances ne le partagent pas. Posez une nouvelle question pour voir une entrée complète.",
   },
   evals: {
     title: "Évals",
@@ -169,6 +175,8 @@ const fr: Dictionary = {
     pastRuns: "Runs précédents",
     noRuns: "Aucun run.",
     back: "← Évals",
+    notFound: "Run introuvable",
+    notFoundHint: "L'historique de démo est éphémère — les instances ne le partagent pas. Lancez les évals pour voir un rapport complet.",
   },
   common: { none: "Aucun." },
 };
