@@ -6,7 +6,15 @@ import { getLocale } from "@/lib/locale";
 import { getQa, parseCited } from "@/lib/db";
 import { deleteQaAction } from "@/lib/actions";
 import { ABSTAIN_MARKER } from "@/lib/llm";
-import { EmptyState, btnDanger, btnGhost } from "@/components/ui";
+import {
+  EmptyState,
+  PageTitle,
+  Prose,
+  SectionTitle,
+  SourceList,
+  btnDanger,
+  btnGhost,
+} from "@/components/ui";
 
 export default async function Page({ params }: PageProps<"/history/[id]">) {
   return (
@@ -47,9 +55,7 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
         </Link>
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {qa.question}
-            </h1>
+            <PageTitle>{qa.question}</PageTitle>
             <p className="mt-1.5 text-sm text-muted">
               {formatDateTime(qa.created_at, locale)}
               {qa.model ? ` · ${qa.model}` : ""}
@@ -67,30 +73,19 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
       {abstained ? (
         <EmptyState>{d.ask.abstained}</EmptyState>
       ) : (
-        <div className="space-y-4">
-          <div className="rounded-md border border-border p-4 sm:p-5">
-            <p className="text-sm leading-relaxed whitespace-pre-wrap">
-              {qa.answer}
-            </p>
-          </div>
+        <div className="space-y-8">
+          <Prose text={qa.answer} />
           {cited.length > 0 && (
             <div>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-                {d.ask.citedLabel}
-              </h2>
-              <ul className="space-y-2">
-                {cited.map((c) => (
-                  <li
-                    key={c.chunkId}
-                    className="rounded-md border border-border p-3 text-sm"
-                  >
-                    <p className="text-xs font-medium text-muted">
-                      [{c.n}] · {c.docName}
-                    </p>
-                    <p className="mt-1 text-muted">{c.excerpt}</p>
-                  </li>
-                ))}
-              </ul>
+              <SectionTitle>{d.ask.citedLabel}</SectionTitle>
+              <SourceList
+                items={cited.map((c) => ({
+                  key: c.chunkId,
+                  n: c.n,
+                  title: c.docName,
+                  detail: c.excerpt,
+                }))}
+              />
             </div>
           )}
         </div>

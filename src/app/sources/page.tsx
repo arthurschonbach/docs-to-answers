@@ -4,9 +4,9 @@ import Link from "next/link";
 import { UploadForm, UrlImportForm } from "@/components/UploadForm";
 import { deleteDocumentAction } from "@/lib/actions";
 import { listDocuments } from "@/lib/db";
-import { getDictionary } from "@/lib/i18n";
+import { format, getDictionary } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
-import { EmptyState, PageHeader, btnDanger } from "@/components/ui";
+import { EmptyState, PageHeader, btnDanger, linkClass } from "@/components/ui";
 
 export default async function Page() {
   const d = getDictionary(await getLocale());
@@ -26,10 +26,7 @@ export default async function Page() {
       </Suspense>
 
       <p className="text-sm">
-        <Link
-          href="/"
-          className="text-muted underline underline-offset-4 transition-colors hover:text-foreground"
-        >
+        <Link href="/" className={`text-muted ${linkClass}`}>
           ← {d.nav.ask}
         </Link>
       </p>
@@ -65,13 +62,18 @@ async function DocumentsList() {
         >
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{doc.name}</p>
-            <p className="mt-0.5 text-xs text-muted">
-              {doc.kind} ·{" "}
+            <p
+              className={`mt-0.5 truncate text-xs ${doc.status === "failed" ? "text-danger" : "text-muted"}`}
+            >
+              <span className="font-mono uppercase">{doc.kind}</span>
+              {" · "}
               {doc.status === "ready"
-                ? `${doc.chunk_count} chunks`
+                ? doc.chunk_count === 1
+                  ? d.sources.chunksOne
+                  : format(d.sources.chunks, { n: doc.chunk_count })
                 : doc.status === "failed"
-                  ? (doc.error ?? doc.status)
-                  : doc.status}
+                  ? (doc.error ?? d.sources.failed)
+                  : d.sources.processing}
             </p>
           </div>
           <form action={deleteDocumentAction} className="shrink-0">

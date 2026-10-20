@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useI18n } from "./LocaleProvider";
-import { EmptyState, btnPrimary, btnSecondary } from "./ui";
+import { EmptyState, ErrorBox, btnPrimary, linkClass } from "./ui";
 
 interface ItemEvent {
   type: "item";
@@ -76,62 +76,52 @@ export function EvalsRunner({ hasKey, hasSample }: { hasKey: boolean; hasSample:
     <div className="space-y-5">
       <div className="flex items-center gap-3">
         <button type="button" className={btnPrimary} disabled={running} onClick={() => void run()}>
-          {running ? d.evals.running : d.evals.run}
+          {running ? d.evals.running : score ? d.evals.runAgain : d.evals.run}
         </button>
         {running && items.length > 0 && (
-          <span className="text-sm text-muted">
+          <span className="text-sm text-muted tabular-nums">
             {items.length} / {items[0].total}
+          </span>
+        )}
+        {score && !running && (
+          <span className="text-sm text-muted">
+            <span className="font-medium text-foreground tabular-nums">
+              {score.score} / {score.total}
+            </span>
+            {" · "}
+            <Link href={`/evals/${score.runId}`} className={linkClass}>
+              {d.evals.viewRun}
+            </Link>
           </span>
         )}
       </div>
 
       {errorKind && (
-        <div className="rounded-md border border-danger-border bg-danger-soft px-4 py-3 text-sm text-danger">
-          {errorKind === "no-sample" ? d.evals.needsSample : d.evals.runFailed}
-        </div>
-      )}
-
-      {score && (
-        <div className="flex items-center justify-between gap-3 rounded-md border border-border p-4">
-          <p className="text-sm font-medium">
-            {score.score} / {score.total}
-          </p>
-          <Link
-            href={`/evals/${score.runId}`}
-            className="text-sm text-muted underline underline-offset-4 transition-colors hover:text-foreground"
-          >
-            {d.evals.viewRun}
-          </Link>
-        </div>
+        <ErrorBox
+          title={errorKind === "no-sample" ? d.evals.needsSample : d.evals.runFailed}
+        />
       )}
 
       {items.length > 0 && (
-        <ul className="space-y-2">
+        <ul className="divide-y divide-border border-y border-border">
           {items.map((item) => (
             <li
               key={item.id}
-              className="flex items-start justify-between gap-3 rounded-md border border-border p-3 text-sm"
+              className="flex items-start justify-between gap-3 py-3 text-sm"
             >
               <div className="min-w-0">
                 <p className="truncate font-medium">{item.question}</p>
                 <p className="mt-0.5 text-xs text-muted">{item.detail}</p>
               </div>
               <span
-                className={`shrink-0 text-xs font-medium ${item.passed ? "text-accent" : "text-danger"}`}
+                className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-medium ${item.passed ? "text-accent" : "text-danger"}`}
               >
+                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />
                 {item.passed ? d.evals.passed : d.evals.failed}
               </span>
             </li>
           ))}
         </ul>
-      )}
-
-      {(items.length > 0 || score) && !running && (
-        <div className="flex justify-end">
-          <button type="button" className={btnSecondary} onClick={() => void run()}>
-            {d.evals.runAgain}
-          </button>
-        </div>
       )}
     </div>
   );

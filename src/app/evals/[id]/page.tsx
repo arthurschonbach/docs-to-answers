@@ -6,7 +6,7 @@ import { getLocale } from "@/lib/locale";
 import { getEvalResults, getEvalRun } from "@/lib/db";
 import { loadEvalSet } from "@/lib/evals";
 import { ABSTAIN_MARKER } from "@/lib/llm";
-import { EmptyState, btnGhost } from "@/components/ui";
+import { EmptyState, PageTitle, btnGhost } from "@/components/ui";
 
 export default async function Page({ params }: PageProps<"/evals/[id]">) {
   return (
@@ -54,9 +54,9 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
         <Link href="/evals" className={btnGhost}>
           {d.evals.back}
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <PageTitle>
           {run.score} / {run.total}
-        </h1>
+        </PageTitle>
         <p className="text-sm text-muted">
           {[run.model, run.embedding_model, formatDateTime(run.created_at, locale)]
             .filter(Boolean)
@@ -64,22 +64,15 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
         </p>
       </div>
 
-      <ul className="space-y-2">
+      <ul className="divide-y divide-border border-y border-border">
         {results.map((r) => {
           const passed = r.passed === 1;
           const expected = expectations.get(r.question);
           return (
-            <li
-              key={r.id}
-              className="rounded-md border border-border p-3 text-sm"
-            >
+            <li key={r.id} className="py-4 text-sm">
               <div className="flex items-start justify-between gap-3">
                 <p className="font-medium">{r.question}</p>
-                <span
-                  className={`shrink-0 text-xs font-medium ${passed ? "text-accent" : "text-danger"}`}
-                >
-                  {passed ? d.evals.passed : d.evals.failed}
-                </span>
+                <StatusPill passed={passed} label={passed ? d.evals.passed : d.evals.failed} />
               </div>
               {expected && (
                 <p className="mt-1 text-xs text-muted">
@@ -88,7 +81,7 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
                     : `${d.evals.expects} ${(expected.expectKeywords ?? []).join(", ")} · ${expected.expectDoc ?? ""}`}
                 </p>
               )}
-              <p className="mt-1 whitespace-pre-wrap text-muted">
+              <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-muted">
                 {r.answer.trim() === ABSTAIN_MARKER
                   ? d.ask.abstained
                   : r.answer.slice(0, 400)}
@@ -98,5 +91,16 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
         })}
       </ul>
     </div>
+  );
+}
+
+function StatusPill({ passed, label }: { passed: boolean; label: string }) {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-medium ${passed ? "text-accent" : "text-danger"}`}
+    >
+      <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />
+      {label}
+    </span>
   );
 }

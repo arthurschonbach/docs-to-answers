@@ -4,12 +4,18 @@ import { useState } from "react";
 import Link from "next/link";
 import { useI18n } from "./LocaleProvider";
 import type { CitedChunk } from "@/lib/db";
+import { format } from "@/lib/i18n";
 import {
   EmptyState,
+  ErrorBox,
+  Prose,
+  SectionTitle,
+  SourceList,
   areaClass,
   btnPrimary,
   btnSecondary,
   labelClass,
+  linkClass,
 } from "./ui";
 
 interface MetaChunk {
@@ -151,44 +157,30 @@ export function AskForm({ hasKey }: { hasKey: boolean }) {
         )}
         {phase === "answering" && considered > 0 && (
           <span className="text-sm text-muted">
-            {d.ask.considered.replace("{n}", String(considered))}
+            {format(d.ask.considered, { n: considered })}
           </span>
         )}
       </div>
 
       {(phase === "answering" || phase === "done") && answer && (
         <div className="space-y-4">
-          <div className="rounded-md border border-border p-4 sm:p-5">
-            <p className="text-sm leading-relaxed whitespace-pre-wrap">
-              {answer}
-            </p>
-          </div>
+          <Prose text={answer} />
           {phase === "done" && citations.length > 0 && (
-            <div>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-                {d.ask.citedLabel}
-              </h2>
-              <ul className="space-y-2">
-                {citations.map((c) => (
-                  <li
-                    key={c.chunkId}
-                    className="rounded-md border border-border p-3 text-sm"
-                  >
-                    <p className="text-xs font-medium text-muted">
-                      [{c.n}] · {c.docName}
-                    </p>
-                    <p className="mt-1 text-muted">{c.excerpt}</p>
-                  </li>
-                ))}
-              </ul>
+            <div className="pt-2">
+              <SectionTitle>{d.ask.citedLabel}</SectionTitle>
+              <SourceList
+                items={citations.map((c) => ({
+                  key: c.chunkId,
+                  n: c.n,
+                  title: c.docName,
+                  detail: c.excerpt,
+                }))}
+              />
             </div>
           )}
           {phase === "done" && qaId && (
             <p className="text-sm">
-              <Link
-                href={`/history/${qaId}`}
-                className="text-muted underline underline-offset-4 transition-colors hover:text-foreground"
-              >
+              <Link href={`/history/${qaId}`} className={`text-muted ${linkClass}`}>
                 {d.ask.savedLink}
               </Link>
             </p>
@@ -199,12 +191,14 @@ export function AskForm({ hasKey }: { hasKey: boolean }) {
       {phase === "abstained" && <EmptyState>{d.ask.abstained}</EmptyState>}
 
       {phase === "error" && (
-        <div className="flex flex-col gap-3 rounded-md border border-danger-border bg-danger-soft px-4 py-3 text-sm text-danger sm:flex-row sm:items-center sm:justify-between">
-          <p>{errorMessage(d.ask, errorKind)}</p>
-          <button className={btnSecondary} onClick={() => void ask()}>
-            {d.ask.retry}
-          </button>
-        </div>
+        <ErrorBox
+          title={errorMessage(d.ask, errorKind)}
+          action={
+            <button type="button" className={btnSecondary} onClick={() => void ask()}>
+              {d.ask.retry}
+            </button>
+          }
+        />
       )}
     </div>
   );

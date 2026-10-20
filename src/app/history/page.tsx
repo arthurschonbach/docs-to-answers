@@ -52,7 +52,9 @@ async function QaList() {
               <span className="shrink-0 text-xs text-muted">
                 {abstained
                   ? d.history.abstainedBadge
-                  : format(d.history.citationsCount, { n: cited.length })}
+                  : cited.length === 1
+                    ? d.history.citationsCountOne
+                    : format(d.history.citationsCount, { n: cited.length })}
               </span>
             </Link>
           </li>

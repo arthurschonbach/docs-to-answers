@@ -7,7 +7,7 @@ import { getLocale } from "@/lib/locale";
 import { listDocuments } from "@/lib/db";
 import { loadSampleAction } from "@/lib/actions";
 import { hasChatKey } from "@/lib/llm";
-import { EmptyState, PageHeader } from "@/components/ui";
+import { EmptyState, PageHeader, btnSecondary, linkClass } from "@/components/ui";
 
 export default async function Page() {
   const locale = await getLocale();
@@ -42,10 +42,7 @@ async function AskSection() {
     <div className="space-y-6">
       <p className="text-sm text-muted">
         {format(d.ask.searchingIn, { names })}{" "}
-        <Link
-          href="/sources"
-          className="underline underline-offset-4 transition-colors hover:text-foreground"
-        >
+        <Link href="/sources" className={linkClass}>
           {d.ask.manageSources}
         </Link>
       </p>
@@ -58,12 +55,9 @@ async function AskSection() {
 async function SampleButton({ compact = false }: { compact?: boolean }) {
   const d = getDictionary(await getLocale());
   return (
-    <div className={compact ? "space-y-2" : "space-y-2"}>
+    <div className={compact ? "border-t border-border pt-6" : "space-y-2"}>
       <form action={loadSampleAction}>
-        <button
-          type="submit"
-          className="inline-flex h-9 items-center rounded-md border border-border bg-background px-3 text-sm text-muted transition-colors hover:border-muted hover:text-foreground cursor-pointer"
-        >
+        <button type="submit" className={btnSecondary}>
           {d.ask.sampleButton}
         </button>
       </form>
