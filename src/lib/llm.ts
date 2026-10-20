@@ -4,7 +4,7 @@ import type { RankedChunk } from "./retrieval";
 const BASE_URL =
   process.env.OPENAI_BASE_URL ?? "https://openrouter.ai/api/v1";
 const MODEL =
-  process.env.OPENAI_MODEL ?? "nvidia/nemotron-3-super-120b-a12b:free";
+  process.env.OPENAI_MODEL ?? "nvidia/nemotron-3.5-super-vl:free";
 
 export const ABSTAIN_MARKER = "NOT_IN_DOCS";
 

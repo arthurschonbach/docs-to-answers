@@ -59,7 +59,7 @@ notice.
 |----------|---------|
 | `OPENAI_API_KEY` | (required for Ask / Evals) |
 | `OPENAI_BASE_URL` | `https://openrouter.ai/api/v1` |
-| `OPENAI_MODEL` | `nvidia/nemotron-3-super-120b-a12b:free` |
+| `OPENAI_MODEL` | `nvidia/nemotron-3.5-super-vl:free` |
 | `DATABASE_PATH` | `./data/docs.db` |
 
 ## Notes
