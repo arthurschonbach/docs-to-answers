@@ -12,6 +12,12 @@ const nextConfig: NextConfig = {
     "better-sqlite3",
     "@huggingface/transformers",
   ],
+  // The onnxruntime binding loads libonnxruntime.so at runtime, which file
+  // tracing can't see. Without it, every route that imports the embedding
+  // model crashes on Vercel. (The CUDA/TensorRT providers are left out.)
+  outputFileTracingIncludes: {
+    "/**": ["./node_modules/onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime.so.1"],
+  },
   turbopack: {
     rules: {
       "*.css": {
