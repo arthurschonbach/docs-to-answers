@@ -32,12 +32,13 @@ hallucination.
 - **Evals**: 15 fixed questions (`data/eval-set.json`), graded
   without a judge — answerable ones need the right keywords and the
   expected source cited, unanswerable ones must abstain. Last recorded
-  run: 14/15.
+  run: 15/15.
 - English/French, light/dark.
 
 ## How it works
 
-Documents are split into ~500-token passages with overlap, embedded
+Documents are split into ~200-token passages (one per markdown section
+when possible) with overlap, embedded
 locally (`Xenova/all-MiniLM-L6-v2`, 384 dims, Transformers.js) and
 stored in SQLite. A question is embedded the same way, the top 6
 passages above a 0.25 similarity floor are retrieved by brute-force

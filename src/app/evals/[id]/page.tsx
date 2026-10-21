@@ -5,7 +5,7 @@ import { getDictionary, formatDateTime } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
 import { getEvalResults, getEvalRun } from "@/lib/db";
 import { loadEvalSet } from "@/lib/evals";
-import { ABSTAIN_MARKER } from "@/lib/llm";
+import { isAbstain } from "@/lib/llm";
 import { EmptyState, PageTitle, btnGhost } from "@/components/ui";
 
 export default async function Page({ params }: PageProps<"/evals/[id]">) {
@@ -82,7 +82,7 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
                 </p>
               )}
               <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-muted">
-                {r.answer.trim() === ABSTAIN_MARKER
+                {isAbstain(r.answer)
                   ? d.ask.abstained
                   : r.answer.slice(0, 400)}
               </p>

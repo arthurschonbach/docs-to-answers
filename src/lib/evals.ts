@@ -1,6 +1,6 @@
 import { z } from "zod";
 import evalSetFile from "../../data/eval-set.json";
-import { ABSTAIN_MARKER } from "./llm";
+import { isAbstain } from "./llm";
 
 const EvalItemSchema = z.object({
   id: z.string(),
@@ -34,7 +34,7 @@ export function gradeAnswer(
   answer: string,
   citedDocNames: string[],
 ): GradeResult {
-  const abstained = answer.trim() === ABSTAIN_MARKER;
+  const abstained = isAbstain(answer);
 
   if (item.abstainExpected) {
     return abstained

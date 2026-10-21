@@ -1,5 +1,5 @@
 import { getDb, saveQa, type CitedChunk } from "@/lib/db";
-import { ABSTAIN_MARKER, hasChatKey, pickCitations, streamAnswer } from "@/lib/llm";
+import { ABSTAIN_MARKER, hasChatKey, isAbstain, pickCitations, streamAnswer } from "@/lib/llm";
 import { excerpt, retrieveChunks } from "@/lib/retrieval";
 
 // Research-grade streams run past short host defaults (Vercel Hobby).
@@ -79,7 +79,7 @@ export async function POST(request: Request): Promise<Response> {
         const { text, model } = next.value;
         const latencyMs = Date.now() - started;
 
-        if (text.trim() === ABSTAIN_MARKER) {
+        if (isAbstain(text)) {
           const qaId = saveQa({
             question,
             answer: ABSTAIN_MARKER,

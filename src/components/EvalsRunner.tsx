@@ -104,7 +104,7 @@ export function EvalsRunner({ hasKey, hasSample }: { hasKey: boolean; hasSample:
 
       {items.length > 0 && (
         <ul className="divide-y divide-border border-y border-border">
-          {items.map((item) => (
+          {[...items].sort((a, b) => a.index - b.index).map((item) => (
             <li
               key={item.id}
               className="flex items-start justify-between gap-3 py-3 text-sm"

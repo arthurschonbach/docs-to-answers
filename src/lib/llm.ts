@@ -8,6 +8,11 @@ const MODEL =
 
 export const ABSTAIN_MARKER = "NOT_IN_DOCS";
 
+/** Models sometimes add punctuation or a sentence around the marker. */
+export function isAbstain(answer: string): boolean {
+  return answer.trim() === "" || answer.includes(ABSTAIN_MARKER);
+}
+
 export function hasChatKey(): boolean {
   return Boolean(process.env.OPENAI_API_KEY);
 }
@@ -25,8 +30,10 @@ function getClient(): OpenAI {
   client ??= new OpenAI({
     apiKey,
     baseURL: BASE_URL,
-    timeout: 120_000,
-    maxRetries: 0,
+    // Free-tier providers sometimes hang or rate-limit: fail fast and let
+    // the SDK retry 408/429/5xx with backoff.
+    timeout: 30_000,
+    maxRetries: 2,
   });
   return client;
 }
@@ -45,14 +52,19 @@ export function buildUserPrompt(question: string, chunks: RankedChunk[]): string
   return `Excerpts:\n\n${block}\n\nQuestion: ${question}`;
 }
 
-interface OpenRouterStreamParams
-  extends OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming {
-  reasoning?: { enabled?: boolean };
-}
-
-interface OpenRouterChatParams
-  extends OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming {
-  reasoning?: { enabled?: boolean };
+// OpenRouter extension: turn off "thinking" so the whole token budget goes
+// to the answer. Ignored by models that don't reason.
+function requestBody(question: string, chunks: RankedChunk[]) {
+  return {
+    model: MODEL,
+    temperature: 0.2,
+    max_tokens: 800,
+    reasoning: { enabled: false },
+    messages: [
+      { role: "system" as const, content: SYSTEM_PROMPT },
+      { role: "user" as const, content: buildUserPrompt(question, chunks) },
+    ],
+  };
 }
 
 export interface GeneratedAnswer {
@@ -72,24 +84,9 @@ export async function generateAnswer(
   question: string,
   chunks: RankedChunk[],
 ): Promise<GeneratedAnswer> {
-  const base = {
-    model: MODEL,
-    temperature: 0.2,
-    max_tokens: 800,
-    messages: [
-      { role: "system" as const, content: SYSTEM_PROMPT },
-      { role: "user" as const, content: buildUserPrompt(question, chunks) },
-    ],
-  };
-  let completion: OpenAI.Chat.Completions.ChatCompletion;
-  try {
-    completion = await getClient().chat.completions.create({
-      ...base,
-      reasoning: { enabled: false },
-    } as OpenRouterChatParams);
-  } catch {
-    completion = await getClient().chat.completions.create(base);
-  }
+  const completion = await getClient().chat.completions.create(
+    requestBody(question, chunks),
+  );
   return {
     text: completion.choices[0]?.message.content ?? "",
     model: completion.model ?? MODEL,
@@ -127,26 +124,10 @@ export async function* streamAnswer(
 ): AsyncGenerator<{ token: string }, { text: string; model: string }> {
   let model = MODEL;
   let full = "";
-  const base = {
-    model: MODEL,
-    temperature: 0.2,
-    max_tokens: 800,
-    stream: true as const,
-    messages: [
-      { role: "system" as const, content: SYSTEM_PROMPT },
-      { role: "user" as const, content: buildUserPrompt(question, chunks) },
-    ],
-  };
-
-  let stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>;
-  try {
-    stream = await getClient().chat.completions.create({
-      ...base,
-      reasoning: { enabled: false },
-    } as OpenRouterStreamParams);
-  } catch {
-    stream = await getClient().chat.completions.create(base);
-  }
+  const stream = await getClient().chat.completions.create({
+    ...requestBody(question, chunks),
+    stream: true,
+  });
 
   for await (const chunk of stream) {
     model = chunk.model ?? model;

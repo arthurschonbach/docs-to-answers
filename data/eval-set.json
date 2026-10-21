@@ -18,7 +18,7 @@
       "id": "cancel-subscription",
       "question": "If I cancel my subscription, do I get a refund automatically?",
       "expectDoc": "policies.md",
-      "expectKeywords": ["billing"]
+      "expectKeywords": ["separately"]
     },
     {
       "id": "shipping-france",

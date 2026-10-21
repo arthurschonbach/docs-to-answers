@@ -5,7 +5,7 @@ import {
   finishEvalRun,
   getDb,
 } from "@/lib/db";
-import { gradeAnswer, loadEvalSet } from "@/lib/evals";
+import { gradeAnswer, loadEvalSet, type EvalItem } from "@/lib/evals";
 import { EMBEDDING_MODEL } from "@/lib/embeddings";
 import {
   ABSTAIN_MARKER,
@@ -16,119 +16,112 @@ import {
 } from "@/lib/llm";
 import { excerpt, retrieveChunks } from "@/lib/retrieval";
 
-// Eval suites run past short host defaults (Vercel Hobby).
-export const maxDuration = 60;
+// 15 LLM calls; Vercel allows up to 300s.
+export const maxDuration = 300;
+
+// Parallel enough to be quick, low enough for free-tier rate limits (the
+// SDK retries 429s with backoff).
+const CONCURRENCY = 3;
 
 type OutEvent =
   | { type: "item"; index: number; total: number; id: string; question: string; passed: boolean; detail: string; answer: string }
   | { type: "done"; runId: string; score: number; total: number }
   | { type: "error"; message: string };
 
+interface ItemResult {
+  item: EvalItem;
+  answer: string;
+  citedDocs: string[];
+  passed: boolean;
+  detail: string;
+}
+
+async function runItem(item: EvalItem): Promise<ItemResult> {
+  try {
+    const chunks = await retrieveChunks(getDb(), item.question);
+    let answer = ABSTAIN_MARKER;
+    let citedDocs: string[] = [];
+    if (chunks.length > 0) {
+      answer = (await generateAnswer(item.question, chunks)).text;
+      citedDocs = [
+        ...new Set(pickCitations(answer, chunks, excerpt).map((c) => c.docName)),
+      ];
+    }
+    return { item, answer, citedDocs, ...gradeAnswer(item, answer, citedDocs) };
+  } catch (error) {
+    console.error(`[evals] ${item.id} failed:`, error);
+    const message = error instanceof Error ? error.message : String(error);
+    return { item, answer: "(failed)", citedDocs: [], passed: false, detail: `error: ${message}` };
+  }
+}
+
 export async function POST(): Promise<Response> {
   const stream = new ReadableStream({
     async start(controller) {
-      const send = (event: OutEvent) =>
-        controller.enqueue(
-          new TextEncoder().encode(JSON.stringify(event) + "\n"),
-        );
+      const send = (event: OutEvent) => {
+        try {
+          controller.enqueue(new TextEncoder().encode(JSON.stringify(event) + "\n"));
+        } catch {
+          // Client went away; keep running so the run is still recorded.
+        }
+      };
 
       if (!hasChatKey()) {
         send({ type: "error", message: "no-key" });
         controller.close();
         return;
       }
-
-      let set: { corpus: string; items: ReturnType<typeof loadEvalSet>["items"] };
-      try {
-        set = loadEvalSet();
-      } catch (error) {
-        console.error("Eval set failed to load:", error);
-        send({ type: "error", message: "failed" });
-        controller.close();
-        return;
-      }
-
       if (countSampleDocuments() === 0) {
         send({ type: "error", message: "no-sample" });
         controller.close();
         return;
       }
 
-      const model = chatModel();
-      const runId = createEvalRun({
-        embeddingModel: EMBEDDING_MODEL,
-        model,
-        total: set.items.length,
-      });
-      let score = 0;
-      console.log(`[evals] run ${runId} started (${set.items.length} items)`);
-
-      try {
-        for (let i = 0; i < set.items.length; i++) {
-          const item = set.items[i];
-          const itemStarted = Date.now();
-          let answer = "";
-          let citedDocs: string[] = [];
-          try {
-            const chunks = await retrieveChunks(getDb(), item.question);
-            if (chunks.length === 0) {
-              answer = ABSTAIN_MARKER;
-            } else {
-              const generated = await generateAnswer(item.question, chunks);
-              answer = generated.text;
-              citedDocs = pickCitations(answer, chunks, excerpt).map(
-                (c) => c.docName,
-              );
-            }
-          } catch (error) {
-            console.error(`Eval item ${item.id} failed:`, error);
-            answer = "";
-          }
-
-          const grade = answer
-            ? gradeAnswer(item, answer, citedDocs)
-            : { passed: false, detail: "generation failed" };
-          if (grade.passed) score += 1;
-          addEvalResult({
-            runId,
-            question: item.question,
-            abstainExpected: Boolean(item.abstainExpected),
-            answer: answer || "(failed)",
-            cited: [...new Set(citedDocs)],
-            passed: grade.passed,
-          });
+      const { items } = loadEvalSet();
+      const results: ItemResult[] = new Array(items.length);
+      let next = 0;
+      let finished = 0;
+      const worker = async () => {
+        while (next < items.length) {
+          const index = next++;
+          const r = await runItem(items[index]);
+          results[index] = r;
+          finished++;
           send({
             type: "item",
-            index: i + 1,
-            total: set.items.length,
-            id: item.id,
-            question: item.question,
-            passed: grade.passed,
-            detail: grade.detail,
-            answer: answer.slice(0, 500),
+            index: index + 1,
+            total: items.length,
+            id: r.item.id,
+            question: r.item.question,
+            passed: r.passed,
+            detail: r.detail,
+            answer: r.answer.slice(0, 500),
           });
-          console.log(
-            `[evals] item ${i + 1}/${set.items.length} ${item.id} ${grade.passed ? "pass" : "FAIL"} (${Date.now() - itemStarted}ms) ${grade.detail}`,
-          );
+          console.log(`[evals] ${finished}/${items.length} ${r.item.id} ${r.passed ? "pass" : "FAIL"} ${r.detail}`);
+        }
+      };
+      await Promise.all(Array.from({ length: CONCURRENCY }, worker));
 
-          // Be kind to free-tier rate limits.
-          if (i < set.items.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-          }
-        }
-        finishEvalRun(runId, score);
-        send({ type: "done", runId, score, total: set.items.length });
-        controller.close();
-      } catch (error) {
-        console.error("Eval run failed:", error);
-        try {
-          finishEvalRun(runId, score);
-          send({ type: "error", message: "failed" });
-        } catch {
-          // Client went away; ignore.
-        }
-        controller.close();
+      // Record only complete runs, in eval-set order.
+      const score = results.filter((r) => r.passed).length;
+      const runId = createEvalRun({
+        embeddingModel: EMBEDDING_MODEL,
+        model: chatModel(),
+        total: items.length,
+      });
+      for (const r of results) {
+        addEvalResult({
+          runId,
+          question: r.item.question,
+          abstainExpected: Boolean(r.item.abstainExpected),
+          answer: r.answer,
+          cited: r.citedDocs,
+          passed: r.passed,
+        });
       }
+      finishEvalRun(runId, score);
+      send({ type: "done", runId, score, total: items.length });
+      controller.close();
     },
   });
 
