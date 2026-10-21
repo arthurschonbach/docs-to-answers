@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { deleteDocument, deleteQa, deleteSampleDocuments } from "./db";
 import { extractPdfText, extractUrlText } from "./extract";
@@ -55,14 +55,13 @@ export async function uploadDocumentAction(
 
   try {
     const result = await ingestDocument({ name, kind: "upload", text });
-    revalidatePath("/sources");
-    revalidatePath("/");
+    refresh();
     return {
       error: null,
       notice: `${d.sources.imported}: ${name} (${result.chunks})`,
     };
   } catch {
-    revalidatePath("/sources");
+    refresh();
     return { error: d.sources.failed, notice: null };
   }
 }
@@ -102,14 +101,13 @@ export async function importUrlAction(
       sourceUrl: raw,
       text,
     });
-    revalidatePath("/sources");
-    revalidatePath("/");
+    refresh();
     return {
       error: null,
       notice: `${d.sources.imported}: ${title} (${result.chunks})`,
     };
   } catch {
-    revalidatePath("/sources");
+    refresh();
     return { error: d.sources.failed, notice: null };
   }
 }
@@ -127,14 +125,13 @@ export async function deleteDocumentAction(formData: FormData): Promise<void> {
   const id = String(formData.get("document_id") ?? "");
   if (!id) return;
   deleteDocument(id);
-  revalidatePath("/sources");
-  revalidatePath("/");
+  refresh();
 }
 
 export async function deleteQaAction(formData: FormData): Promise<void> {
   const id = String(formData.get("qa_id") ?? "");
   if (!id) return;
   deleteQa(id);
-  revalidatePath("/history");
+  refresh();
   redirect("/history");
 }
