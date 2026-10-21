@@ -21,6 +21,7 @@ const en = {
     emptyCorpus:
       "No documents yet. Add some in Sources, or try the sample handbook.",
     sampleButton: "Load sample handbook",
+    sampleLoading: "Loading sample…",
     sampleNote: "Sample: a short fake handbook to try things out.",
     submit: "Ask",
     submitting: "Searching…",
@@ -115,6 +116,7 @@ const fr: Dictionary = {
     emptyCorpus:
       "Aucun document. Ajoutez-en dans Sources, ou essayez le guide d'exemple.",
     sampleButton: "Charger le guide d'exemple",
+    sampleLoading: "Chargement de l'exemple…",
     sampleNote: "Exemple : un petit guide fictif pour essayer.",
     submit: "Poser",
     submitting: "Recherche…",

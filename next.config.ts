@@ -16,7 +16,12 @@ const nextConfig: NextConfig = {
   // tracing can't see. Without it, every route that imports the embedding
   // model crashes on Vercel. (The CUDA/TensorRT providers are left out.)
   outputFileTracingIncludes: {
-    "/**": ["./node_modules/onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime.so.1"],
+    "/**": [
+      "./node_modules/onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime.so.1",
+      // The embedding model, fetched at build time by scripts/fetch-model.mjs.
+      "./data/models/Xenova/all-MiniLM-L6-v2/*.json",
+      "./data/models/Xenova/all-MiniLM-L6-v2/onnx/model_quantized.onnx",
+    ],
   },
   turbopack: {
     rules: {

@@ -2,9 +2,11 @@ import path from "node:path";
 import { env, pipeline, type FeatureExtractionPipeline } from "@huggingface/transformers";
 
 // Local embeddings: no API key, no cost, works offline.
-// Model downloads once on first use — into ./data/models locally,
-// or /tmp on hosts with a read-only filesystem (Vercel). Cold starts
-// there re-download (~90MB), so the first ingest is slow.
+// The quantized model (~23MB) is fetched into ./data/models at build time
+// (scripts/fetch-model.mjs) and shipped with the deployment. If it is
+// missing, it downloads on first use: into ./data/models locally, or /tmp
+// on hosts with a read-only filesystem (Vercel).
+env.localModelPath = path.join(process.cwd(), "data", "models");
 env.cacheDir = process.env.VERCEL
   ? path.join("/tmp", "dta-models")
   : path.join(process.cwd(), "data", "models");
@@ -19,6 +21,7 @@ function getExtractor(): Promise<FeatureExtractionPipeline> {
     extractor = pipeline(
       "feature-extraction",
       EMBEDDING_MODEL,
+      { dtype: "q8" },
     ) as unknown as Promise<FeatureExtractionPipeline>;
   }
   return extractor;

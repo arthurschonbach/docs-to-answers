@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import Link from "next/link";
 import { AskForm } from "@/components/AskForm";
+import { PendingButton } from "@/components/PendingButton";
 import { getDictionary, format } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
 import { listDocuments } from "@/lib/db";
@@ -10,33 +11,34 @@ import { hasChatKey } from "@/lib/llm";
 import { EmptyState, PageHeader, btnSecondary, linkClass } from "@/components/ui";
 
 export default async function Page() {
-  const locale = await getLocale();
-  const d = getDictionary(locale);
-  const docs = listDocuments();
+  const d = getDictionary(await getLocale());
 
   return (
     <div className="space-y-8">
       <PageHeader title={d.ask.title} description={d.ask.description} />
-
-      {docs.length === 0 ? (
-        <div className="space-y-3">
-          <EmptyState>{d.ask.emptyCorpus}</EmptyState>
-          <SampleButton />
-        </div>
-      ) : (
-        <Suspense fallback={null}>
-          <AskSection />
-        </Suspense>
-      )}
+      <Suspense fallback={null}>
+        <AskSection />
+      </Suspense>
     </div>
   );
 }
 
+// The corpus is read after connection() so it is never part of the cached
+// shell: otherwise the empty state stays on screen after the sample loads.
 async function AskSection() {
   await connection();
   const docs = listDocuments();
-  const locale = await getLocale();
-  const d = getDictionary(locale);
+  const d = getDictionary(await getLocale());
+
+  if (docs.length === 0) {
+    return (
+      <div className="space-y-3">
+        <EmptyState>{d.ask.emptyCorpus}</EmptyState>
+        <SampleButton />
+      </div>
+    );
+  }
+
   const names = docs.map((doc) => doc.name).join(", ");
   return (
     <div className="space-y-6">
@@ -57,9 +59,9 @@ async function SampleButton({ compact = false }: { compact?: boolean }) {
   return (
     <div className={compact ? "border-t border-border pt-6" : "space-y-2"}>
       <form action={loadSampleAction}>
-        <button type="submit" className={btnSecondary}>
+        <PendingButton className={btnSecondary} pendingLabel={d.ask.sampleLoading}>
           {d.ask.sampleButton}
-        </button>
+        </PendingButton>
       </form>
       {!compact && <p className="text-xs text-muted">{d.ask.sampleNote}</p>}
     </div>

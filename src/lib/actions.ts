@@ -118,7 +118,9 @@ export async function loadSampleAction(): Promise<void> {
   for (const doc of SAMPLE_DOCS) {
     await ingestDocument({ name: doc.name, kind: "sample", text: doc.text });
   }
-  redirect("/");
+  // Already on "/": redirecting to the same URL left the empty state on
+  // screen, so re-render in place.
+  refresh();
 }
 
 export async function deleteDocumentAction(formData: FormData): Promise<void> {
