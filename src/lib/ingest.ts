@@ -25,7 +25,10 @@ export async function ingestDocument(input: {
   const vectors: Float32Array[] = [];
   for (let i = 0; i < chunks.length; i += EMBED_BATCH) {
     const batch = chunks.slice(i, i + EMBED_BATCH);
-    vectors.push(...(await embedTexts(batch.map((c) => c.text))));
+    // The title gives every chunk its subject ("they" → the Houston Rockets).
+    vectors.push(
+      ...(await embedTexts(batch.map((c) => `${input.name}\n\n${c.text}`))),
+    );
   }
 
   const documentId = insertDocumentWithChunks(

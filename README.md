@@ -41,7 +41,7 @@ Documents are split into ~200-token passages (one per markdown section
 when possible) with overlap, embedded
 locally (`Xenova/all-MiniLM-L6-v2`, 384 dims, Transformers.js) and
 stored in SQLite. A question is embedded the same way, the top 6
-passages above a 0.25 similarity floor are retrieved by brute-force
+passages above a 0.1 similarity floor are retrieved by brute-force
 cosine, and the answer is generated strictly from those passages.
 Unknown `[n]` markers are dropped; an exact `NOT_IN_DOCS` reply
 becomes an abstention.
@@ -61,6 +61,7 @@ notice.
 | `OPENAI_API_KEY` | (required for Ask / Evals) |
 | `OPENAI_BASE_URL` | `https://openrouter.ai/api/v1` |
 | `OPENAI_MODEL` | `nvidia/nemotron-3.5-super-vl:free` |
+| `OPENAI_FALLBACK_MODEL` | `google/gemma-4-31b-it:free` (used when the primary fails) |
 | `DATABASE_PATH` | `./data/docs.db` |
 
 ## Notes

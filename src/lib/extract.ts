@@ -33,8 +33,10 @@ export interface UrlExtraction {
 /** Fetch a URL and extract readable text. Throws with a short reason. */
 export async function extractUrlText(raw: string): Promise<UrlExtraction> {
   let url: URL;
+  const trimmed = raw.trim();
   try {
-    url = new URL(raw.trim());
+    // Accept "en.wikipedia.org/wiki/..." as typed into a browser bar.
+    url = new URL(/^[a-z]+:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`);
   } catch {
     throw new Error("invalid-url");
   }
@@ -71,15 +73,59 @@ export async function extractUrlText(raw: string): Promise<UrlExtraction> {
   if (!contentType.includes("html")) throw new Error("unsupported-type");
 
   const $ = cheerio.load(decoded);
-  $("script, style, noscript, nav, header, footer, aside").remove();
+  $(JUNK).remove();
   const title = $("title").first().text().trim() || url.hostname;
-  const main =
-    $("article").first().text() ||
-    $('main, [role="main"]').first().text() ||
-    $("body").text();
-  const text = main.replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n\n").trim();
+  const root = $("article").first().length
+    ? $("article").first()
+    : $('main, [role="main"]').first().length
+      ? $('main, [role="main"]').first()
+      : $("body");
+  const text = htmlToText($, root);
   if (!text) throw new Error("empty");
   return { title, text };
+}
+
+// Page chrome and reference apparatus: noise for retrieval.
+const JUNK = [
+  "script", "style", "noscript", "nav", "header", "footer", "aside", "figure",
+  '[role="navigation"]', ".navbox", ".reflist", ".references", "sup.reference",
+  ".mw-editsection",
+].join(", ");
+
+const BLOCKS = "h1, h2, h3, h4, h5, h6, p, li, tr, pre, blockquote, dt, dd";
+
+/**
+ * One line per block element, headings as markdown "#" so the chunker
+ * splits on sections. Plain .text() glues blocks together ("Founded1967").
+ */
+function htmlToText(
+  $: cheerio.CheerioAPI,
+  root: ReturnType<cheerio.CheerioAPI>,
+): string {
+  const lines: string[] = [];
+  root.find(BLOCKS).each((_, el) => {
+    const node = $(el);
+    // Leaf blocks only, so nested lists/paragraphs aren't emitted twice.
+    if (node.find(BLOCKS).length > 0) return;
+    const text =
+      el.tagName === "tr"
+        ? node
+            .children("th, td")
+            .map((_, cell) => clean($(cell).text()))
+            .get()
+            .filter(Boolean)
+            .join(" | ")
+        : clean(node.text());
+    if (!text) return;
+    const level = /^h([1-6])$/.exec(el.tagName)?.[1];
+    lines.push(level ? `${"#".repeat(Number(level))} ${text}` : text);
+  });
+  // Div-only pages have no block tags: fall back to raw text.
+  return lines.length > 0 ? lines.join("\n\n") : clean(root.text());
+}
+
+function clean(text: string): string {
+  return text.replace(/\[\d+\]/g, "").replace(/\s+/g, " ").trim();
 }
 
 async function readCapped(

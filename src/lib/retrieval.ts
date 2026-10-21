@@ -6,7 +6,9 @@ import {
 } from "./embeddings";
 
 export const TOP_K = 6;
-export const SIMILARITY_FLOOR = 0.25;
+// Only drops clearly unrelated passages; deciding whether the excerpts
+// answer the question is the model's job (it replies NOT_IN_DOCS).
+export const SIMILARITY_FLOOR = 0.1;
 
 export interface RankedChunk {
   chunkId: string;

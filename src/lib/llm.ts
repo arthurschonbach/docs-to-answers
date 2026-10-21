@@ -6,6 +6,11 @@ const BASE_URL =
 const MODEL =
   process.env.OPENAI_MODEL ?? "nvidia/nemotron-3.5-super-vl:free";
 
+// Tried by OpenRouter when the primary model's provider errors (free-tier
+// providers return 502s regularly). A different provider on purpose.
+const FALLBACK_MODEL =
+  process.env.OPENAI_FALLBACK_MODEL ?? "google/gemma-4-31b-it:free";
+
 export const ABSTAIN_MARKER = "NOT_IN_DOCS";
 
 /** Models sometimes add punctuation or a sentence around the marker. */
@@ -52,11 +57,12 @@ export function buildUserPrompt(question: string, chunks: RankedChunk[]): string
   return `Excerpts:\n\n${block}\n\nQuestion: ${question}`;
 }
 
-// OpenRouter extension: turn off "thinking" so the whole token budget goes
-// to the answer. Ignored by models that don't reason.
+// OpenRouter extensions: `models` lists fallbacks, and `reasoning` turns
+// off "thinking" so the whole token budget goes to the answer.
 function requestBody(question: string, chunks: RankedChunk[]) {
   return {
     model: MODEL,
+    models: [MODEL, FALLBACK_MODEL],
     temperature: 0.2,
     max_tokens: 800,
     reasoning: { enabled: false },
@@ -79,18 +85,37 @@ export interface ParsedCitation {
   excerpt: string;
 }
 
+// OpenRouter answers 200 before the provider responds, so a provider
+// timeout arrives as an `error` field in the body. The SDK only retries on
+// HTTP status, so retry those here.
+const ATTEMPTS = 3;
+
+function bodyError(payload: unknown): Error | null {
+  const error = (payload as { error?: { message?: string } }).error;
+  return error ? new Error(error.message ?? "Provider error") : null;
+}
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /** Non-streaming answer for evals and other batch uses. */
 export async function generateAnswer(
   question: string,
   chunks: RankedChunk[],
 ): Promise<GeneratedAnswer> {
-  const completion = await getClient().chat.completions.create(
-    requestBody(question, chunks),
-  );
-  return {
-    text: completion.choices[0]?.message.content ?? "",
-    model: completion.model ?? MODEL,
-  };
+  for (let attempt = 1; ; attempt++) {
+    const completion = await getClient().chat.completions.create(
+      requestBody(question, chunks),
+    );
+    const error = bodyError(completion);
+    if (!error && completion.choices?.length) {
+      return {
+        text: completion.choices[0].message.content ?? "",
+        model: completion.model ?? MODEL,
+      };
+    }
+    if (attempt === ATTEMPTS) throw error ?? new Error("Empty completion");
+    await wait(1000 * attempt);
+  }
 }
 
 /** Map [n] markers in an answer to the ranked chunks. Invalid ids ignored. */
@@ -124,17 +149,26 @@ export async function* streamAnswer(
 ): AsyncGenerator<{ token: string }, { text: string; model: string }> {
   let model = MODEL;
   let full = "";
-  const stream = await getClient().chat.completions.create({
-    ...requestBody(question, chunks),
-    stream: true,
-  });
-
-  for await (const chunk of stream) {
-    model = chunk.model ?? model;
-    const delta = chunk.choices[0]?.delta?.content;
-    if (!delta) continue;
-    full += delta;
-    yield { token: delta };
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const stream = await getClient().chat.completions.create({
+        ...requestBody(question, chunks),
+        stream: true,
+      });
+      for await (const chunk of stream) {
+        const error = bodyError(chunk);
+        if (error) throw error;
+        model = chunk.model ?? model;
+        const delta = chunk.choices?.[0]?.delta?.content;
+        if (!delta) continue;
+        full += delta;
+        yield { token: delta };
+      }
+      return { text: full, model };
+    } catch (error) {
+      // Once tokens reached the client, a retry would duplicate them.
+      if (full || attempt === ATTEMPTS) throw error;
+      await wait(1000 * attempt);
+    }
   }
-  return { text: full, model };
 }

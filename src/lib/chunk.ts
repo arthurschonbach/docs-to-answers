@@ -36,7 +36,8 @@ export function chunkText(
   for (const unit of units) {
     const candidate = current ? `${current}\n\n${unit}` : unit;
     const newSection = /^#/.test(unit) && hasBody(current);
-    if ((newSection || estimateTokens(candidate) > target) && current) {
+    // Never close a chunk that is only headings: keep them with their body.
+    if ((newSection || estimateTokens(candidate) > target) && hasBody(current)) {
       packed.push(current);
       current = unit;
     } else {
