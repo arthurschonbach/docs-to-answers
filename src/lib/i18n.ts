@@ -59,7 +59,6 @@ const en = {
     delete: "Delete",
     chunks: "{n} chunks",
     chunksOne: "1 chunk",
-    processing: "processing",
   },
   history: {
     title: "History",
@@ -154,7 +153,6 @@ const fr: Dictionary = {
     delete: "Supprimer",
     chunks: "{n} fragments",
     chunksOne: "1 fragment",
-    processing: "en cours",
   },
   history: {
     title: "Historique",

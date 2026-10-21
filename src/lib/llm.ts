@@ -7,9 +7,9 @@ const MODEL =
   process.env.OPENAI_MODEL ?? "nvidia/nemotron-3.5-super-vl:free";
 
 // Tried by OpenRouter when the primary model's provider errors (free-tier
-// providers return 502s regularly). A different provider on purpose.
+// providers return 502s regularly).
 const FALLBACK_MODEL =
-  process.env.OPENAI_FALLBACK_MODEL ?? "google/gemma-4-31b-it:free";
+  process.env.OPENAI_FALLBACK_MODEL ?? "nvidia/nemotron-3.5-lightning:free";
 
 export const ABSTAIN_MARKER = "NOT_IN_DOCS";
 
@@ -27,10 +27,10 @@ export function chatModel(): string {
 }
 
 let client: OpenAI | null = null;
-function getClient(): OpenAI {
+export function getClient(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set. Add it to .env to ask questions.");
+    throw new Error("OPENAI_API_KEY is not set. Add it to .env.");
   }
   client ??= new OpenAI({
     apiKey,
@@ -54,7 +54,8 @@ export function buildUserPrompt(question: string, chunks: RankedChunk[]): string
   const block = chunks
     .map((c, i) => `[${i + 1}] (source: ${c.docName})\n${c.text}`)
     .join("\n\n");
-  return `Excerpts:\n\n${block}\n\nQuestion: ${question}`;
+  // Rules restated last: small models follow the end of the prompt best.
+  return `Excerpts:\n\n${block}\n\nQuestion: ${question}\n\nAnswer with [n] citations, or reply exactly ${ABSTAIN_MARKER} if the excerpts don't answer it.`;
 }
 
 // OpenRouter extensions: `models` lists fallbacks, and `reasoning` turns

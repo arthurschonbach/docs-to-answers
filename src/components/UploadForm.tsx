@@ -60,7 +60,7 @@ export function UrlImportForm() {
         <input
           id="url"
           name="url"
-          type="url"
+          type="text"
           inputMode="url"
           className={inputLargeClass}
           placeholder={d.sources.urlPlaceholder}

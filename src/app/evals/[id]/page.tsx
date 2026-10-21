@@ -19,7 +19,7 @@ export default async function Page({ params }: PageProps<"/evals/[id]">) {
 async function Detail({ params }: { params: Promise<{ id: string }> }) {
   await connection();
   const { id } = await params;
-  const run = getEvalRun(id);
+  const run = await getEvalRun(id);
 
   const locale = await getLocale();
   const d = getDictionary(locale);
@@ -35,7 +35,7 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
       </div>
     );
   }
-  const results = getEvalResults(id);
+  const results = await getEvalResults(id);
 
   let expectations = new Map<
     string,
@@ -66,7 +66,7 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
 
       <ul className="divide-y divide-border border-y border-border">
         {results.map((r) => {
-          const passed = r.passed === 1;
+          const passed = r.passed;
           const expected = expectations.get(r.question);
           return (
             <li key={r.id} className="py-4 text-sm">

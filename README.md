@@ -38,43 +38,35 @@ hallucination.
 ## How it works
 
 Documents are split into ~200-token passages (one per markdown section
-when possible) with overlap, embedded
-locally (`Xenova/all-MiniLM-L6-v2`, 384 dims, Transformers.js) and
-stored in SQLite. A question is embedded the same way, the top 6
-passages above a 0.1 similarity floor are retrieved by brute-force
-cosine, and the answer is generated strictly from those passages.
-Unknown `[n]` markers are dropped; an exact `NOT_IN_DOCS` reply
-becomes an abstention.
+when possible), embedded through OpenRouter
+(`nvidia/nemotron-3.5-embed-1b:free`, 1024 dims) and stored in Postgres
+with pgvector. A question is embedded the same way, pgvector returns the
+6 nearest passages (above a 0.1 cosine floor), and the answer is
+generated strictly from those passages. Unknown `[n]` markers are
+dropped; a `NOT_IN_DOCS` reply becomes an abstention.
 
 ## Setup
 
-Embeddings run locally — no key, no cost, works offline. The model
-downloads once into `./data/models` (git-ignored).
-
-Answering and evals need a key: copy `.env.example` to `.env` and set
-`OPENAI_API_KEY` (an OpenRouter key; the default model is a free one).
-Without it, ingest, search and browse work; Ask and Evals show a
-notice.
+1. **Database**: in the Vercel project, Storage → Create → Neon, and
+   connect it. That sets `DATABASE_URL`; tables and the `vector`
+   extension are created on first request. For local dev, pull it with
+   `vercel env pull .env.local`.
+2. **Key**: set `OPENAI_API_KEY` (an OpenRouter key) in Vercel and in
+   `.env`. It is used for embeddings and answers; the defaults are free
+   models.
 
 | Variable | Default |
 |----------|---------|
-| `OPENAI_API_KEY` | (required for Ask / Evals) |
+| `DATABASE_URL` | (required) |
+| `OPENAI_API_KEY` | (required) |
 | `OPENAI_BASE_URL` | `https://openrouter.ai/api/v1` |
 | `OPENAI_MODEL` | `nvidia/nemotron-3.5-super-vl:free` |
-| `OPENAI_FALLBACK_MODEL` | `google/gemma-4-31b-it:free` (used when the primary fails) |
-| `DATABASE_PATH` | `./data/docs.db` |
-
-## Notes
-
-- Storage is SQLite (`better-sqlite3`), single-user.
-- On Vercel the database lives in `/tmp` (read-only filesystem), so
-  history is ephemeral there — the sample handbook is always
-  reloadable. First ingest on a cold instance downloads the ~90MB
-  embedding model, so expect one slow call.
+| `OPENAI_FALLBACK_MODEL` | `nvidia/nemotron-3.5-lightning:free` |
+| `EMBEDDING_MODEL` | `nvidia/nemotron-3.5-embed-1b:free` |
 
 ```bash
 npm install
-npm run dev      # http://localhost:3000
+npm run dev      # http://localhost:3000 (needs .env.local / .env)
 npm run lint
 npm run build
 ```

@@ -34,7 +34,7 @@ yarn-error.log*
 .env*
 !.env.example
 
-# local database + downloaded ML models (recreated on demand)
+# leftovers from the old SQLite + local-model setup
 /data/*.db*
 /data/models
 

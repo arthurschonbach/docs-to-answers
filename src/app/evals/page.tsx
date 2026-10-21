@@ -30,12 +30,12 @@ export default async function Page() {
 
 async function RunnerSection() {
   await connection();
-  return <EvalsRunner hasKey={hasChatKey()} hasSample={countSampleDocuments() > 0} />;
+  return <EvalsRunner hasKey={hasChatKey()} hasSample={(await countSampleDocuments()) > 0} />;
 }
 
 async function RunsList() {
   await connection();
-  const runs = listEvalRuns();
+  const runs = await listEvalRuns();
   const locale = await getLocale();
   const d = getDictionary(locale);
 

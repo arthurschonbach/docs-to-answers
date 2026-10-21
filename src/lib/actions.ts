@@ -112,7 +112,7 @@ export async function importUrlAction(
   }
 }
 export async function loadSampleAction(): Promise<void> {
-  deleteSampleDocuments();
+  await deleteSampleDocuments();
   // Inlined in src/lib/sample-docs.ts (bundled at build time) instead of
   // data/*.md files, so seeding works on read-only hosts (Vercel).
   for (const doc of SAMPLE_DOCS) {
@@ -126,14 +126,14 @@ export async function loadSampleAction(): Promise<void> {
 export async function deleteDocumentAction(formData: FormData): Promise<void> {
   const id = String(formData.get("document_id") ?? "");
   if (!id) return;
-  deleteDocument(id);
+  await deleteDocument(id);
   refresh();
 }
 
 export async function deleteQaAction(formData: FormData): Promise<void> {
   const id = String(formData.get("qa_id") ?? "");
   if (!id) return;
-  deleteQa(id);
+  await deleteQa(id);
   refresh();
   redirect("/history");
 }

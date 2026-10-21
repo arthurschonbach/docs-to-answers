@@ -1,9 +1,5 @@
-import Database from "better-sqlite3";
-import {
-  cosineSimilarity,
-  deserializeEmbedding,
-  embedText,
-} from "./embeddings";
+import { db, toVector } from "./db";
+import { embedText } from "./embeddings";
 
 export const TOP_K = 6;
 // Only drops clearly unrelated passages; deciding whether the excerpts
@@ -18,41 +14,21 @@ export interface RankedChunk {
   score: number;
 }
 
-interface ChunkRow {
-  id: string;
-  document_id: string;
-  text: string;
-  embedding: Buffer;
-  name: string;
-}
-
-/** Embed the question, rank all chunks by cosine, return top-k above floor. */
+/** Embed the question and let pgvector rank chunks by cosine similarity. */
 export async function retrieveChunks(
-  db: Database.Database,
   question: string,
   topK: number = TOP_K,
   floor: number = SIMILARITY_FLOOR,
 ): Promise<RankedChunk[]> {
-  const query = await embedText(question);
-  const rows = db
-    .prepare(
-      `SELECT c.id, c.document_id, c.text, c.embedding, d.name
-       FROM chunks c JOIN documents d ON d.id = c.document_id
-       WHERE d.status = 'ready'`,
-    )
-    .all() as ChunkRow[];
-
-  return rows
-    .map((row) => ({
-      chunkId: row.id,
-      documentId: row.document_id,
-      docName: row.name,
-      text: row.text,
-      score: cosineSimilarity(query, deserializeEmbedding(row.embedding)),
-    }))
-    .filter((c) => c.score >= floor)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, topK);
+  const query = toVector(await embedText(question));
+  const q = await db();
+  const rows = await q<RankedChunk[]>`
+    SELECT c.id AS "chunkId", c.document_id AS "documentId", d.name AS "docName",
+           c.text, 1 - (c.embedding <=> ${query}::vector) AS score
+    FROM chunks c JOIN documents d ON d.id = c.document_id
+    ORDER BY c.embedding <=> ${query}::vector
+    LIMIT ${topK}`;
+  return rows.filter((r) => r.score >= floor);
 }
 
 export function excerpt(text: string, max: number = 220): string {

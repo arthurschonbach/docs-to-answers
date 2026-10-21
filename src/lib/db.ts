@@ -1,129 +1,161 @@
-import Database from "better-sqlite3";
-import fs from "node:fs";
-import path from "node:path";
+import postgres from "postgres";
+import { EMBEDDING_DIMS } from "./embeddings";
 
-const DB_PATH =
-  process.env.DATABASE_PATH ??
-  // Vercel's filesystem is read-only except /tmp. Data there is ephemeral
-  // (per-invocation), which is fine for a demo.
-  (process.env.VERCEL
-    ? path.join("/tmp", "docs.db")
-    : path.join(process.cwd(), "data", "docs.db"));
+// Postgres (Neon in production) with pgvector. One shared database, so
+// every serverless instance sees the same documents.
+function createSql() {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL is not set. Add it to .env.");
+  // prepare: false - Neon's pooled endpoint (PgBouncer) can't keep
+  // prepared statements across transactions.
+  return postgres(url, { prepare: false, max: 5, onnotice: () => {} });
+}
+
+const globalForDb = globalThis as unknown as {
+  __dtaSql?: postgres.Sql;
+  __dtaSchema?: Promise<void>;
+};
+
+function sql(): postgres.Sql {
+  return (globalForDb.__dtaSql ??= createSql());
+}
 
 const SCHEMA = `
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE IF NOT EXISTS documents (
-  id TEXT PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   kind TEXT NOT NULL,
   source_url TEXT,
-  status TEXT NOT NULL DEFAULT 'ready',
-  chunk_count INTEGER NOT NULL DEFAULT 0,
-  error TEXT,
-  created_at TEXT NOT NULL
+  chunk_count INTEGER NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS chunks (
-  id TEXT PRIMARY KEY,
-  document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
   ord INTEGER NOT NULL,
   text TEXT NOT NULL,
-  embedding BLOB NOT NULL,
-  tokens INTEGER NOT NULL DEFAULT 0
+  embedding vector(${EMBEDDING_DIMS}) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS qa_pairs (
-  id TEXT PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   question TEXT NOT NULL,
   answer TEXT NOT NULL,
-  cited_chunk_ids TEXT NOT NULL DEFAULT '[]',
+  cited JSONB NOT NULL DEFAULT '[]',
   model TEXT,
   latency_ms INTEGER,
-  created_at TEXT NOT NULL
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS eval_runs (
-  id TEXT PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   embedding_model TEXT NOT NULL,
   model TEXT,
-  score INTEGER NOT NULL DEFAULT 0,
-  total INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL
+  score INTEGER NOT NULL,
+  total INTEGER NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS eval_results (
-  id TEXT PRIMARY KEY,
-  run_id TEXT NOT NULL REFERENCES eval_runs(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  run_id UUID NOT NULL REFERENCES eval_runs(id) ON DELETE CASCADE,
+  ord INTEGER NOT NULL,
   question TEXT NOT NULL,
-  abstain_expected INTEGER NOT NULL DEFAULT 0,
+  abstain_expected BOOLEAN NOT NULL,
   answer TEXT NOT NULL,
-  cited TEXT NOT NULL DEFAULT '[]',
-  passed INTEGER NOT NULL DEFAULT 0
+  cited JSONB NOT NULL DEFAULT '[]',
+  passed BOOLEAN NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id);
 CREATE INDEX IF NOT EXISTS idx_eval_results_run ON eval_results(run_id);
 `;
 
-function createDb(): Database.Database {
-  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-  const instance = new Database(DB_PATH);
-  instance.pragma("journal_mode = WAL");
-  instance.pragma("foreign_keys = ON");
-  instance.exec(SCHEMA);
-  return instance;
+/** The database, with tables created on first use in this process. */
+export async function db(): Promise<postgres.Sql> {
+  globalForDb.__dtaSchema ??= sql()
+    .unsafe(SCHEMA)
+    .then(() => undefined)
+    .catch((error) => {
+      globalForDb.__dtaSchema = undefined; // retry on the next request
+      throw error;
+    });
+  await globalForDb.__dtaSchema;
+  return sql();
 }
 
-const globalForDb = globalThis as unknown as { __dtaDb?: Database.Database };
-const db = globalForDb.__dtaDb ?? (globalForDb.__dtaDb = createDb());
-
-export function getDb(): Database.Database {
-  return db;
+/** pgvector literal: '[0.1,0.2,...]'. */
+export function toVector(vec: ArrayLike<number>): string {
+  return `[${Array.from(vec).join(",")}]`;
 }
+
+const iso = (value: Date | string) =>
+  value instanceof Date ? value.toISOString() : value;
+
+// ---- documents ------------------------------------------------------------
 
 export interface DocumentRow {
   id: string;
   name: string;
   kind: string;
   source_url: string | null;
-  status: string;
   chunk_count: number;
-  error: string | null;
   created_at: string;
 }
 
-export function listDocuments(): DocumentRow[] {
-  return db
-    .prepare("SELECT * FROM documents ORDER BY created_at DESC")
-    .all() as DocumentRow[];
+export async function listDocuments(): Promise<DocumentRow[]> {
+  const q = await db();
+  const rows = await q<DocumentRow[]>`
+    SELECT id, name, kind, source_url, chunk_count, created_at
+    FROM documents ORDER BY created_at DESC`;
+  return rows.map((r) => ({ ...r, created_at: iso(r.created_at) }));
 }
 
-export function insertDocumentWithChunks(
+export async function insertDocumentWithChunks(
   doc: { name: string; kind: string; sourceUrl: string | null },
-  chunks: Array<{ text: string; tokens: number; embedding: Buffer }>,
-): string {
-  const id = crypto.randomUUID();
-  const insertDoc = db.prepare(
-    "INSERT INTO documents (id, name, kind, source_url, status, chunk_count, created_at) VALUES (?, ?, ?, ?, 'ready', ?, ?)",
-  );
-  const insertChunk = db.prepare(
-    "INSERT INTO chunks (id, document_id, ord, text, embedding, tokens) VALUES (?, ?, ?, ?, ?, ?)",
-  );
-  db.transaction(() => {
-    insertDoc.run(id, doc.name, doc.kind, doc.sourceUrl, chunks.length, new Date().toISOString());
-    chunks.forEach((c, ord) => {
-      insertChunk.run(crypto.randomUUID(), id, ord, c.text, c.embedding, c.tokens);
-    });
-  })();
-  return id;
+  chunks: Array<{ text: string; embedding: ArrayLike<number> }>,
+): Promise<string> {
+  const q = await db();
+  return q.begin(async (tx) => {
+    const [{ id }] = await tx<{ id: string }[]>`
+      INSERT INTO documents (name, kind, source_url, chunk_count)
+      VALUES (${doc.name}, ${doc.kind}, ${doc.sourceUrl}, ${chunks.length})
+      RETURNING id`;
+    const rows = chunks.map((c, ord) => ({
+      document_id: id,
+      ord,
+      text: c.text,
+      embedding: toVector(c.embedding),
+    }));
+    // Batches keep each statement well under Postgres' parameter limit.
+    for (let i = 0; i < rows.length; i += 500) {
+      await tx`INSERT INTO chunks ${tx(rows.slice(i, i + 500))}`;
+    }
+    return id;
+  }) as Promise<string>;
 }
 
-export function deleteDocument(id: string): void {
-  db.prepare("DELETE FROM documents WHERE id = ?").run(id);
+export async function deleteDocument(id: string): Promise<void> {
+  const q = await db();
+  await q`DELETE FROM documents WHERE id = ${id}`;
 }
 
-export function deleteQa(id: string): void {
-  db.prepare("DELETE FROM qa_pairs WHERE id = ?").run(id);
+export async function countSampleDocuments(): Promise<number> {
+  const q = await db();
+  const [{ n }] = await q<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM documents WHERE kind = 'sample'`;
+  return n;
 }
+
+export async function deleteSampleDocuments(): Promise<void> {
+  const q = await db();
+  await q`DELETE FROM documents WHERE kind = 'sample'`;
+}
+
+// ---- Q&A history ------------------------------------------------------------
 
 export interface CitedChunk {
   n: number;
@@ -136,60 +168,47 @@ export interface QaRow {
   id: string;
   question: string;
   answer: string;
-  cited_chunk_ids: string;
+  cited: CitedChunk[];
   model: string | null;
   latency_ms: number | null;
   created_at: string;
 }
 
-export function saveQa(input: {
+export async function saveQa(input: {
   question: string;
   answer: string;
   cited: CitedChunk[];
   model: string | null;
   latencyMs: number | null;
-}): string {
-  const id = crypto.randomUUID();
-  db.prepare(
-    "INSERT INTO qa_pairs (id, question, answer, cited_chunk_ids, model, latency_ms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-  ).run(
-    id,
-    input.question,
-    input.answer,
-    JSON.stringify(input.cited),
-    input.model,
-    input.latencyMs,
-    new Date().toISOString(),
-  );
+}): Promise<string> {
+  const q = await db();
+  const [{ id }] = await q<{ id: string }[]>`
+    INSERT INTO qa_pairs (question, answer, cited, model, latency_ms)
+    VALUES (${input.question}, ${input.answer}, ${q.json(input.cited as never)},
+            ${input.model}, ${input.latencyMs})
+    RETURNING id`;
   return id;
 }
 
-export function listQa(): QaRow[] {
-  return db
-    .prepare("SELECT * FROM qa_pairs ORDER BY created_at DESC")
-    .all() as QaRow[];
+export async function listQa(): Promise<QaRow[]> {
+  const q = await db();
+  const rows = await q<QaRow[]>`SELECT * FROM qa_pairs ORDER BY created_at DESC`;
+  return rows.map((r) => ({ ...r, created_at: iso(r.created_at) }));
 }
 
-export function getQa(id: string): QaRow | undefined {
-  return db.prepare("SELECT * FROM qa_pairs WHERE id = ?").get(id) as
-    | QaRow
-    | undefined;
+export async function getQa(id: string): Promise<QaRow | undefined> {
+  if (!isUuid(id)) return undefined;
+  const q = await db();
+  const [row] = await q<QaRow[]>`SELECT * FROM qa_pairs WHERE id = ${id}`;
+  return row && { ...row, created_at: iso(row.created_at) };
 }
 
-export function parseCited(value: string): CitedChunk[] {
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (c): c is CitedChunk =>
-        typeof c === "object" &&
-        c !== null &&
-        typeof (c as CitedChunk).docName === "string",
-    );
-  } catch {
-    return [];
-  }
+export async function deleteQa(id: string): Promise<void> {
+  const q = await db();
+  await q`DELETE FROM qa_pairs WHERE id = ${id}`;
 }
+
+// ---- evals -------------------------------------------------------------------
 
 export interface EvalRunRow {
   id: string;
@@ -202,83 +221,68 @@ export interface EvalRunRow {
 
 export interface EvalResultRow {
   id: string;
-  run_id: string;
   question: string;
-  abstain_expected: number;
-  answer: string;
-  cited: string;
-  passed: number;
-}
-
-export function createEvalRun(input: {
-  embeddingModel: string;
-  model: string | null;
-  total: number;
-}): string {
-  const id = crypto.randomUUID();
-  db.prepare(
-    "INSERT INTO eval_runs (id, embedding_model, model, score, total, created_at) VALUES (?, ?, ?, 0, ?, ?)",
-  ).run(id, input.embeddingModel, input.model, input.total, new Date().toISOString());
-  return id;
-}
-
-export function addEvalResult(input: {
-  runId: string;
-  question: string;
-  abstainExpected: boolean;
+  abstain_expected: boolean;
   answer: string;
   cited: string[];
   passed: boolean;
-}): void {
-  db.prepare(
-    "INSERT INTO eval_results (id, run_id, question, abstain_expected, answer, cited, passed) VALUES (?, ?, ?, ?, ?, ?, ?)",
-  ).run(
-    crypto.randomUUID(),
-    input.runId,
-    input.question,
-    input.abstainExpected ? 1 : 0,
-    input.answer,
-    JSON.stringify(input.cited),
-    input.passed ? 1 : 0,
-  );
 }
 
-export function finishEvalRun(id: string, score: number): void {
-  db.prepare("UPDATE eval_runs SET score = ? WHERE id = ?").run(score, id);
+/** Saves a finished run and its results in one transaction. */
+export async function saveEvalRun(input: {
+  embeddingModel: string;
+  model: string | null;
+  results: Array<{
+    question: string;
+    abstainExpected: boolean;
+    answer: string;
+    cited: string[];
+    passed: boolean;
+  }>;
+}): Promise<string> {
+  const q = await db();
+  const score = input.results.filter((r) => r.passed).length;
+  return q.begin(async (tx) => {
+    const [{ id }] = await tx<{ id: string }[]>`
+      INSERT INTO eval_runs (embedding_model, model, score, total)
+      VALUES (${input.embeddingModel}, ${input.model}, ${score}, ${input.results.length})
+      RETURNING id`;
+    await tx`INSERT INTO eval_results ${tx(
+      input.results.map((r, ord) => ({
+        run_id: id,
+        ord,
+        question: r.question,
+        abstain_expected: r.abstainExpected,
+        answer: r.answer,
+        cited: JSON.stringify(r.cited),
+        passed: r.passed,
+      })),
+    )}`;
+    return id;
+  }) as Promise<string>;
 }
 
-export function listEvalRuns(): EvalRunRow[] {
-  return db
-    .prepare("SELECT * FROM eval_runs ORDER BY created_at DESC")
-    .all() as EvalRunRow[];
+export async function listEvalRuns(): Promise<EvalRunRow[]> {
+  const q = await db();
+  const rows = await q<EvalRunRow[]>`SELECT * FROM eval_runs ORDER BY created_at DESC`;
+  return rows.map((r) => ({ ...r, created_at: iso(r.created_at) }));
 }
 
-export function getEvalRun(id: string): EvalRunRow | undefined {
-  return db.prepare("SELECT * FROM eval_runs WHERE id = ?").get(id) as
-    | EvalRunRow
-    | undefined;
+export async function getEvalRun(id: string): Promise<EvalRunRow | undefined> {
+  if (!isUuid(id)) return undefined;
+  const q = await db();
+  const [row] = await q<EvalRunRow[]>`SELECT * FROM eval_runs WHERE id = ${id}`;
+  return row && { ...row, created_at: iso(row.created_at) };
 }
 
-export function getEvalResults(runId: string): EvalResultRow[] {
-  return db
-    .prepare("SELECT * FROM eval_results WHERE run_id = ? ORDER BY rowid")
-    .all(runId) as EvalResultRow[];
+export async function getEvalResults(runId: string): Promise<EvalResultRow[]> {
+  const q = await db();
+  return q<EvalResultRow[]>`
+    SELECT id, question, abstain_expected, answer, cited, passed
+    FROM eval_results WHERE run_id = ${runId} ORDER BY ord`;
 }
 
-export function countSampleDocuments(): number {
-  const row = db
-    .prepare("SELECT COUNT(*) AS n FROM documents WHERE kind = 'sample' AND status = 'ready'")
-    .get() as { n: number };
-  return row.n;
-}
-
-export function deleteSampleDocuments(): void {
-  db.prepare("DELETE FROM documents WHERE kind = 'sample'").run();
-}
-
-export function countChunks(): number {
-  const row = db.prepare("SELECT COUNT(*) AS n FROM chunks").get() as {
-    n: number;
-  };
-  return row.n;
+// Malformed ids in URLs would otherwise be a Postgres cast error (500).
+function isUuid(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }

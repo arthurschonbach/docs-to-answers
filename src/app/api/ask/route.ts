@@ -1,8 +1,7 @@
-import { getDb, saveQa, type CitedChunk } from "@/lib/db";
+import { saveQa, type CitedChunk } from "@/lib/db";
 import { ABSTAIN_MARKER, hasChatKey, isAbstain, pickCitations, streamAnswer } from "@/lib/llm";
 import { excerpt, retrieveChunks } from "@/lib/retrieval";
 
-// Research-grade streams run past short host defaults (Vercel Hobby).
 export const maxDuration = 60;
 
 type OutEvent =
@@ -46,7 +45,7 @@ export async function POST(request: Request): Promise<Response> {
       }
 
       try {
-        const chunks = await retrieveChunks(getDb(), question);
+        const chunks = await retrieveChunks(question);
         send({
           type: "meta",
           chunks: chunks.map((c, i) => ({
@@ -58,7 +57,7 @@ export async function POST(request: Request): Promise<Response> {
         });
 
         if (chunks.length === 0) {
-          const qaId = saveQa({
+          const qaId = await saveQa({
             question,
             answer: ABSTAIN_MARKER,
             cited: [],
@@ -80,7 +79,7 @@ export async function POST(request: Request): Promise<Response> {
         const latencyMs = Date.now() - started;
 
         if (isAbstain(text)) {
-          const qaId = saveQa({
+          const qaId = await saveQa({
             question,
             answer: ABSTAIN_MARKER,
             cited: [],
@@ -90,7 +89,7 @@ export async function POST(request: Request): Promise<Response> {
           send({ type: "abstain", qaId });
         } else {
           const citations: CitedChunk[] = pickCitations(text, chunks, excerpt);
-          const qaId = saveQa({
+          const qaId = await saveQa({
             question,
             answer: text,
             cited: citations,

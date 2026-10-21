@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import Link from "next/link";
 import { getDictionary, format, formatDateTime } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
-import { listQa, parseCited } from "@/lib/db";
+import { listQa } from "@/lib/db";
 import { ABSTAIN_MARKER } from "@/lib/llm";
 import { EmptyState, PageHeader } from "@/components/ui";
 
@@ -22,7 +22,7 @@ export default async function Page() {
 
 async function QaList() {
   await connection();
-  const pairs = listQa();
+  const pairs = await listQa();
   const locale = await getLocale();
   const d = getDictionary(locale);
 
@@ -34,7 +34,7 @@ async function QaList() {
     <ul className="m-0 list-none p-0">
       {pairs.map((qa) => {
         const abstained = qa.answer.trim() === ABSTAIN_MARKER;
-        const cited = parseCited(qa.cited_chunk_ids);
+        const cited = qa.cited;
         return (
           <li key={qa.id} className="border-b border-border last:border-b-0">
             <Link

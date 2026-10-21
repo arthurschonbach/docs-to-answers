@@ -13,57 +13,52 @@ import { EmptyState, PageHeader, btnSecondary, linkClass } from "@/components/ui
 export default async function Page() {
   const d = getDictionary(await getLocale());
 
+  // The ask box is part of the static shell so it shows immediately; only
+  // the corpus line waits for the database.
   return (
     <div className="space-y-8">
       <PageHeader title={d.ask.title} description={d.ask.description} />
       <Suspense fallback={null}>
-        <AskSection />
+        <CorpusLine />
+      </Suspense>
+      <AskForm hasKey={hasChatKey()} />
+      <Suspense fallback={null}>
+        <SampleButton />
       </Suspense>
     </div>
   );
 }
 
-// The corpus is read after connection() so it is never part of the cached
-// shell: otherwise the empty state stays on screen after the sample loads.
-async function AskSection() {
+// Read after connection() so it is never part of the cached shell:
+// otherwise the empty state stays on screen after the sample loads.
+async function CorpusLine() {
   await connection();
-  const docs = listDocuments();
+  const docs = await listDocuments();
   const d = getDictionary(await getLocale());
 
-  if (docs.length === 0) {
-    return (
-      <div className="space-y-3">
-        <EmptyState>{d.ask.emptyCorpus}</EmptyState>
-        <SampleButton />
-      </div>
-    );
-  }
+  if (docs.length === 0) return <EmptyState>{d.ask.emptyCorpus}</EmptyState>;
 
   const names = docs.map((doc) => doc.name).join(", ");
   return (
-    <div className="space-y-6">
-      <p className="text-sm text-muted">
-        {format(d.ask.searchingIn, { names })}{" "}
-        <Link href="/sources" className={linkClass}>
-          {d.ask.manageSources}
-        </Link>
-      </p>
-      <AskForm hasKey={hasChatKey()} />
-      <SampleButton compact />
-    </div>
+    <p className="text-sm text-muted">
+      {format(d.ask.searchingIn, { names })}{" "}
+      <Link href="/sources" className={linkClass}>
+        {d.ask.manageSources}
+      </Link>
+    </p>
   );
 }
 
-async function SampleButton({ compact = false }: { compact?: boolean }) {
+async function SampleButton() {
   const d = getDictionary(await getLocale());
   return (
-    <div className={compact ? "border-t border-border pt-6" : "space-y-2"}>
+    <div className="space-y-2 border-t border-border pt-6">
       <form action={loadSampleAction}>
         <PendingButton className={btnSecondary} pendingLabel={d.ask.sampleLoading}>
           {d.ask.sampleButton}
         </PendingButton>
       </form>
-      {!compact && <p className="text-xs text-muted">{d.ask.sampleNote}</p>}
+      <p className="text-xs text-muted">{d.ask.sampleNote}</p>
     </div>
   );
 }

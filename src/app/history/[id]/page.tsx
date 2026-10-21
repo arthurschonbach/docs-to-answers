@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import Link from "next/link";
 import { getDictionary, formatDateTime } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
-import { getQa, parseCited } from "@/lib/db";
+import { getQa } from "@/lib/db";
 import { deleteQaAction } from "@/lib/actions";
 import { ABSTAIN_MARKER } from "@/lib/llm";
 import {
@@ -27,7 +27,7 @@ export default async function Page({ params }: PageProps<"/history/[id]">) {
 async function Detail({ params }: { params: Promise<{ id: string }> }) {
   await connection();
   const { id } = await params;
-  const qa = getQa(id);
+  const qa = await getQa(id);
 
   const locale = await getLocale();
   const d = getDictionary(locale);
@@ -45,7 +45,7 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
     );
   }
   const abstained = qa.answer.trim() === ABSTAIN_MARKER;
-  const cited = parseCited(qa.cited_chunk_ids);
+  const cited = qa.cited;
 
   return (
     <div className="space-y-8">

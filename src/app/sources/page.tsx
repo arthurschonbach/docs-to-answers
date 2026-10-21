@@ -46,7 +46,7 @@ async function UploadSection() {
 
 async function DocumentsList() {
   await connection();
-  const docs = listDocuments();
+  const docs = await listDocuments();
   const d = getDictionary(await getLocale());
 
   if (docs.length === 0) {
@@ -62,18 +62,12 @@ async function DocumentsList() {
         >
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{doc.name}</p>
-            <p
-              className={`mt-0.5 truncate text-xs ${doc.status === "failed" ? "text-danger" : "text-muted"}`}
-            >
+            <p className="mt-0.5 truncate text-xs text-muted">
               <span className="font-mono uppercase">{doc.kind}</span>
               {" · "}
-              {doc.status === "ready"
-                ? doc.chunk_count === 1
-                  ? d.sources.chunksOne
-                  : format(d.sources.chunks, { n: doc.chunk_count })
-                : doc.status === "failed"
-                  ? (doc.error ?? d.sources.failed)
-                  : d.sources.processing}
+              {doc.chunk_count === 1
+                ? d.sources.chunksOne
+                : format(d.sources.chunks, { n: doc.chunk_count })}
             </p>
           </div>
           <form action={deleteDocumentAction} className="shrink-0">
