@@ -2,13 +2,12 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import Link from "next/link";
 import { AskForm } from "@/components/AskForm";
-import { PendingButton } from "@/components/PendingButton";
+import { SampleForm } from "@/components/SampleForm";
 import { getDictionary, format } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
 import { listDocuments } from "@/lib/db";
-import { loadSampleAction } from "@/lib/actions";
 import { hasChatKey } from "@/lib/llm";
-import { EmptyState, PageHeader, btnSecondary, linkClass } from "@/components/ui";
+import { EmptyState, PageHeader, linkClass } from "@/components/ui";
 
 export default async function Page() {
   const d = getDictionary(await getLocale());
@@ -53,11 +52,7 @@ async function SampleButton() {
   const d = getDictionary(await getLocale());
   return (
     <div className="space-y-2 border-t border-border pt-6">
-      <form action={loadSampleAction}>
-        <PendingButton className={btnSecondary} pendingLabel={d.ask.sampleLoading}>
-          {d.ask.sampleButton}
-        </PendingButton>
-      </form>
+      <SampleForm />
       <p className="text-xs text-muted">{d.ask.sampleNote}</p>
     </div>
   );

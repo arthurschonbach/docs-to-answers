@@ -111,16 +111,24 @@ export async function importUrlAction(
     return { error: d.sources.failed, notice: null };
   }
 }
-export async function loadSampleAction(): Promise<void> {
-  await deleteSampleDocuments();
-  // Inlined in src/lib/sample-docs.ts (bundled at build time) instead of
-  // data/*.md files, so seeding works on read-only hosts (Vercel).
-  for (const doc of SAMPLE_DOCS) {
-    await ingestDocument({ name: doc.name, kind: "sample", text: doc.text });
+export async function loadSampleAction(): Promise<FormState> {
+  const d = getDictionary(await getLocale());
+  try {
+    await deleteSampleDocuments();
+    // Inlined in src/lib/sample-docs.ts (bundled at build time) instead of
+    // data/*.md files, so seeding works on read-only hosts (Vercel).
+    for (const doc of SAMPLE_DOCS) {
+      await ingestDocument({ name: doc.name, kind: "sample", text: doc.text });
+    }
+  } catch (error) {
+    console.error("Sample load failed:", error);
+    refresh();
+    return { error: d.ask.sampleFailed, notice: null };
   }
   // Already on "/": redirecting to the same URL left the empty state on
   // screen, so re-render in place.
   refresh();
+  return { error: null, notice: null };
 }
 
 export async function deleteDocumentAction(formData: FormData): Promise<void> {
