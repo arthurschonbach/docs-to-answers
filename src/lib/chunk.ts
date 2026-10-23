@@ -3,8 +3,8 @@ export interface TextChunk {
   tokens: number;
 }
 
-// MiniLM was trained on short passages and its embedding gets diluted on
-// long ones: ~200-token chunks keep a single topic per vector.
+// Embeddings of long passages blur several topics into one vector:
+// ~200-token chunks keep a single topic per vector.
 export const TARGET_TOKENS = 200;
 export const OVERLAP_TOKENS = 30;
 
@@ -49,11 +49,14 @@ export function chunkText(
   // Add word-based overlap: prepend the tail of the previous chunk, unless
   // this chunk opens a new section.
   const overlapWords = Math.max(8, Math.round(overlap * 0.75));
+  // Also capped in characters: text without spaces (long URLs, base64) is
+  // one "word", and would otherwise repeat the whole previous chunk.
+  const overlapChars = overlapWords * 8;
   return packed.map((body, i) => {
     const prefix =
       i === 0 || body.startsWith("#")
         ? ""
-        : tailWords(packed[i - 1], overlapWords) + "\n\n";
+        : tailWords(packed[i - 1], overlapWords).slice(-overlapChars) + "\n\n";
     const full = (prefix + body).trim();
     return { text: full, tokens: estimateTokens(full) };
   });
