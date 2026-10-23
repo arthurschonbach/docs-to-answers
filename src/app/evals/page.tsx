@@ -4,6 +4,7 @@ import Link from "next/link";
 import { EvalsRunner } from "@/components/EvalsRunner";
 import { getDictionary, formatDateTime } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
+import { getVisitorId } from "@/lib/visitor";
 import { countSampleDocuments, listEvalRuns } from "@/lib/db";
 import { hasChatKey } from "@/lib/llm";
 import { EmptyState, PageHeader, SectionTitle } from "@/components/ui";
@@ -30,12 +31,12 @@ export default async function Page() {
 
 async function RunnerSection() {
   await connection();
-  return <EvalsRunner hasKey={hasChatKey()} hasSample={(await countSampleDocuments()) > 0} />;
+  return <EvalsRunner hasKey={hasChatKey()} hasSample={(await countSampleDocuments(await getVisitorId())) > 0} />;
 }
 
 async function RunsList() {
   await connection();
-  const runs = await listEvalRuns();
+  const runs = await listEvalRuns(await getVisitorId());
   const locale = await getLocale();
   const d = getDictionary(locale);
 

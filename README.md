@@ -45,6 +45,24 @@ with pgvector. A question is embedded the same way, pgvector returns the
 generated strictly from those passages. Unknown `[n]` markers are
 dropped; a `NOT_IN_DOCS` reply becomes an abstention.
 
+## Running it as a public demo
+
+- **Per-visitor data**: a proxy gives each browser an anonymous id
+  (httpOnly cookie) and every query is scoped to it, so visitors never
+  see or delete each other's documents, history or eval runs. Demo data
+  is purged after 30 days.
+- **Rate limits**: fixed-window counters in Postgres, per IP and global
+  (`src/lib/limits.ts`), on questions, imports and eval runs.
+- **URL import**: only public addresses are fetched. Localhost, private
+  ranges and cloud metadata are refused, and every redirect hop is
+  re-checked (`src/lib/safe-fetch.ts`).
+
+## Tests
+
+`npm test` runs the unit tests (Vitest): chunking, citation parsing,
+eval grading, address filtering, rate-limit windows. CI runs lint,
+typecheck, tests and build on every push.
+
 ## Setup
 
 1. **Database**: in the Vercel project, Storage → Create → Neon, and
@@ -68,5 +86,6 @@ dropped; a `NOT_IN_DOCS` reply becomes an abstention.
 npm install
 npm run dev      # http://localhost:3000 (needs .env.local / .env)
 npm run lint
+npm test
 npm run build
 ```

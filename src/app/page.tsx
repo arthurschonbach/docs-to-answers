@@ -5,6 +5,7 @@ import { AskForm } from "@/components/AskForm";
 import { SampleForm } from "@/components/SampleForm";
 import { getDictionary, format } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
+import { getVisitorId } from "@/lib/visitor";
 import { listDocuments } from "@/lib/db";
 import { hasChatKey } from "@/lib/llm";
 import { EmptyState, PageHeader, linkClass } from "@/components/ui";
@@ -32,7 +33,7 @@ export default async function Page() {
 // otherwise the empty state stays on screen after the sample loads.
 async function CorpusLine() {
   await connection();
-  const docs = await listDocuments();
+  const docs = await listDocuments(await getVisitorId());
   const d = getDictionary(await getLocale());
 
   if (docs.length === 0) return <EmptyState>{d.ask.emptyCorpus}</EmptyState>;

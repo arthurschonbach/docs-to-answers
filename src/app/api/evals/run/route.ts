@@ -9,6 +9,9 @@ import {
   pickCitations,
 } from "@/lib/llm";
 import { excerpt, retrieveChunks } from "@/lib/retrieval";
+import { EVAL_LIMITS } from "@/lib/limits";
+import { hitLimit } from "@/lib/rate-limit";
+import { clientIp, getVisitorId } from "@/lib/visitor";
 
 // 15 LLM calls; Vercel allows up to 300s.
 export const maxDuration = 300;
@@ -30,9 +33,9 @@ interface ItemResult {
   detail: string;
 }
 
-async function runItem(item: EvalItem): Promise<ItemResult> {
+async function runItem(visitor: string, item: EvalItem): Promise<ItemResult> {
   try {
-    const chunks = await retrieveChunks(item.question);
+    const chunks = await retrieveChunks(visitor, item.question);
     let answer = ABSTAIN_MARKER;
     let citedDocs: string[] = [];
     if (chunks.length > 0) {
@@ -49,7 +52,8 @@ async function runItem(item: EvalItem): Promise<ItemResult> {
   }
 }
 
-export async function POST(): Promise<Response> {
+export async function POST(request: Request): Promise<Response> {
+  const visitor = await getVisitorId();
   const stream = new ReadableStream({
     async start(controller) {
       const send = (event: OutEvent) => {
@@ -62,10 +66,13 @@ export async function POST(): Promise<Response> {
 
       try {
         if (!hasChatKey()) return send({ type: "error", message: "no-key" });
-        if ((await countSampleDocuments()) === 0) {
+        if ((await countSampleDocuments(visitor)) === 0) {
           return send({ type: "error", message: "no-sample" });
         }
-        await runAll(send);
+        if (await hitLimit(clientIp(request.headers), EVAL_LIMITS)) {
+          return send({ type: "error", message: "rate-limited" });
+        }
+        await runAll(visitor, send);
       } catch (error) {
         console.error("Eval run failed:", error);
         send({ type: "error", message: "failed" });
@@ -80,7 +87,7 @@ export async function POST(): Promise<Response> {
   });
 }
 
-async function runAll(send: (event: OutEvent) => void): Promise<void> {
+async function runAll(visitor: string, send: (event: OutEvent) => void): Promise<void> {
   const { items } = loadEvalSet();
   const results: ItemResult[] = new Array(items.length);
   let next = 0;
@@ -88,7 +95,7 @@ async function runAll(send: (event: OutEvent) => void): Promise<void> {
   const worker = async () => {
     while (next < items.length) {
       const index = next++;
-      const r = await runItem(items[index]);
+      const r = await runItem(visitor, items[index]);
       results[index] = r;
       finished++;
       send({
@@ -108,7 +115,7 @@ async function runAll(send: (event: OutEvent) => void): Promise<void> {
 
   // Record only complete runs, in eval-set order.
   const score = results.filter((r) => r.passed).length;
-  const runId = await saveEvalRun({
+  const runId = await saveEvalRun(visitor, {
     embeddingModel: EMBEDDING_MODEL,
     model: chatModel(),
     results: results.map((r) => ({

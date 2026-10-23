@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import Link from "next/link";
 import { getDictionary, formatDateTime } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
+import { getVisitorId } from "@/lib/visitor";
 import { getEvalResults, getEvalRun } from "@/lib/db";
 import { loadEvalSet } from "@/lib/evals";
 import { isAbstain } from "@/lib/llm";
@@ -19,7 +20,7 @@ export default async function Page({ params }: PageProps<"/evals/[id]">) {
 async function Detail({ params }: { params: Promise<{ id: string }> }) {
   await connection();
   const { id } = await params;
-  const run = await getEvalRun(id);
+  const run = await getEvalRun(await getVisitorId(), id);
 
   const locale = await getLocale();
   const d = getDictionary(locale);

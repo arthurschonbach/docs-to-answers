@@ -1,8 +1,13 @@
 import { saveQa, type CitedChunk } from "@/lib/db";
 import { ABSTAIN_MARKER, hasChatKey, isAbstain, pickCitations, streamAnswer } from "@/lib/llm";
+import { ASK_LIMITS } from "@/lib/limits";
+import { hitLimit } from "@/lib/rate-limit";
 import { excerpt, retrieveChunks } from "@/lib/retrieval";
+import { clientIp, getVisitorId } from "@/lib/visitor";
 
 export const maxDuration = 60;
+
+const MAX_QUESTION_CHARS = 1000;
 
 type OutEvent =
   | { type: "meta"; chunks: Array<{ n: number; docName: string; excerpt: string; score: number }> }
@@ -26,6 +31,11 @@ export async function POST(request: Request): Promise<Response> {
   } catch {
     question = "";
   }
+  question = question.slice(0, MAX_QUESTION_CHARS);
+  const visitor = await getVisitorId();
+  // Only requests that would reach the model count against the budget.
+  const limited =
+    question && hasChatKey() ? await hitLimit(clientIp(request.headers), ASK_LIMITS) : null;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -43,9 +53,14 @@ export async function POST(request: Request): Promise<Response> {
         controller.close();
         return;
       }
+      if (limited) {
+        send({ type: "error", message: "rate-limited" });
+        controller.close();
+        return;
+      }
 
       try {
-        const chunks = await retrieveChunks(question);
+        const chunks = await retrieveChunks(visitor, question);
         send({
           type: "meta",
           chunks: chunks.map((c, i) => ({
@@ -57,7 +72,7 @@ export async function POST(request: Request): Promise<Response> {
         });
 
         if (chunks.length === 0) {
-          const qaId = await saveQa({
+          const qaId = await saveQa(visitor, {
             question,
             answer: ABSTAIN_MARKER,
             cited: [],
@@ -79,7 +94,7 @@ export async function POST(request: Request): Promise<Response> {
         const latencyMs = Date.now() - started;
 
         if (isAbstain(text)) {
-          const qaId = await saveQa({
+          const qaId = await saveQa(visitor, {
             question,
             answer: ABSTAIN_MARKER,
             cited: [],
@@ -89,7 +104,7 @@ export async function POST(request: Request): Promise<Response> {
           send({ type: "abstain", qaId });
         } else {
           const citations: CitedChunk[] = pickCitations(text, chunks, excerpt);
-          const qaId = await saveQa({
+          const qaId = await saveQa(visitor, {
             question,
             answer: text,
             cited: citations,

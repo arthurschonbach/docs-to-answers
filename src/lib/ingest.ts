@@ -11,7 +11,7 @@ export interface IngestResult {
  * Chunk → embed → store in one transaction. Throws on failure and writes
  * nothing, so a failed ingest never leaves partial data behind.
  */
-export async function ingestDocument(input: {
+export async function ingestDocument(visitor: string, input: {
   name: string;
   kind: string;
   sourceUrl?: string | null;
@@ -24,6 +24,7 @@ export async function ingestDocument(input: {
   const vectors = await embedTexts(chunks.map((c) => `${input.name}\n\n${c.text}`));
 
   const documentId = await insertDocumentWithChunks(
+    visitor,
     { name: input.name, kind: input.kind, sourceUrl: input.sourceUrl ?? null },
     chunks.map((c, i) => ({ text: c.text, embedding: vectors[i] })),
   );

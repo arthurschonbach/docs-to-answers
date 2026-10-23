@@ -98,7 +98,13 @@ export function EvalsRunner({ hasKey, hasSample }: { hasKey: boolean; hasSample:
 
       {errorKind && (
         <ErrorBox
-          title={errorKind === "no-sample" ? d.evals.needsSample : d.evals.runFailed}
+          title={
+            errorKind === "no-sample"
+              ? d.evals.needsSample
+              : errorKind === "rate-limited"
+                ? d.evals.rateLimited
+                : d.evals.runFailed
+          }
         />
       )}
 

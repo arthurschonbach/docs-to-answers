@@ -205,10 +205,11 @@ export function AskForm({ hasKey }: { hasKey: boolean }) {
 }
 
 function errorMessage(
-  ask: { askFailed: string; emptyQuestion: string; needsKey: string },
+  ask: { askFailed: string; emptyQuestion: string; needsKey: string; rateLimited: string },
   kind: string | null,
 ): string {
   if (kind === "empty") return ask.emptyQuestion;
+  if (kind === "rate-limited") return ask.rateLimited;
   if (kind === "no-key") return ask.needsKey;
   return ask.askFailed;
 }

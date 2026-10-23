@@ -1,5 +1,7 @@
 import postgres from "postgres";
 import { EMBEDDING_DIMS } from "./embeddings";
+// Malformed ids in URLs would otherwise be a Postgres cast error (500).
+import { isUuid } from "./visitor-id";
 
 // Postgres (Neon in production) with pgvector. One shared database, so
 // every serverless instance sees the same documents.
@@ -72,12 +74,41 @@ CREATE TABLE IF NOT EXISTS eval_results (
 
 CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id);
 CREATE INDEX IF NOT EXISTS idx_eval_results_run ON eval_results(run_id);
+
+-- Rows belong to an anonymous visitor (see lib/visitor.ts). Rows created
+-- before this column existed stay NULL: no one sees them, the purge
+-- below removes them.
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS visitor_id TEXT;
+ALTER TABLE qa_pairs ADD COLUMN IF NOT EXISTS visitor_id TEXT;
+ALTER TABLE eval_runs ADD COLUMN IF NOT EXISTS visitor_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_documents_visitor ON documents(visitor_id);
+CREATE INDEX IF NOT EXISTS idx_qa_pairs_visitor ON qa_pairs(visitor_id);
+CREATE INDEX IF NOT EXISTS idx_eval_runs_visitor ON eval_runs(visitor_id);
+
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key TEXT NOT NULL,
+  window_start BIGINT NOT NULL,
+  count INTEGER NOT NULL,
+  PRIMARY KEY (key, window_start)
+);
+`;
+
+// Demo data is kept for RETENTION_DAYS, then purged (with its chunks and
+// eval results, by cascade).
+export const RETENTION_DAYS = 30;
+
+const PURGE = `
+DELETE FROM documents WHERE created_at < now() - interval '${RETENTION_DAYS} days' OR visitor_id IS NULL;
+DELETE FROM qa_pairs WHERE created_at < now() - interval '${RETENTION_DAYS} days' OR visitor_id IS NULL;
+DELETE FROM eval_runs WHERE created_at < now() - interval '${RETENTION_DAYS} days' OR visitor_id IS NULL;
 `;
 
 /** The database, with tables created on first use in this process. */
 export async function db(): Promise<postgres.Sql> {
+  // Purge runs once per process start, which on serverless is often enough.
   globalForDb.__dtaSchema ??= sql()
     .unsafe(SCHEMA)
+    .then(() => sql().unsafe(PURGE))
     .then(() => undefined)
     .catch((error) => {
       globalForDb.__dtaSchema = undefined; // retry on the next request
@@ -106,23 +137,24 @@ export interface DocumentRow {
   created_at: string;
 }
 
-export async function listDocuments(): Promise<DocumentRow[]> {
+export async function listDocuments(visitor: string): Promise<DocumentRow[]> {
   const q = await db();
   const rows = await q<DocumentRow[]>`
     SELECT id, name, kind, source_url, chunk_count, created_at
-    FROM documents ORDER BY created_at DESC`;
+    FROM documents WHERE visitor_id = ${visitor} ORDER BY created_at DESC`;
   return rows.map((r) => ({ ...r, created_at: iso(r.created_at) }));
 }
 
 export async function insertDocumentWithChunks(
+  visitor: string,
   doc: { name: string; kind: string; sourceUrl: string | null },
   chunks: Array<{ text: string; embedding: ArrayLike<number> }>,
 ): Promise<string> {
   const q = await db();
   return q.begin(async (tx) => {
     const [{ id }] = await tx<{ id: string }[]>`
-      INSERT INTO documents (name, kind, source_url, chunk_count)
-      VALUES (${doc.name}, ${doc.kind}, ${doc.sourceUrl}, ${chunks.length})
+      INSERT INTO documents (visitor_id, name, kind, source_url, chunk_count)
+      VALUES (${visitor}, ${doc.name}, ${doc.kind}, ${doc.sourceUrl}, ${chunks.length})
       RETURNING id`;
     const rows = chunks.map((c, ord) => ({
       document_id: id,
@@ -138,21 +170,23 @@ export async function insertDocumentWithChunks(
   }) as Promise<string>;
 }
 
-export async function deleteDocument(id: string): Promise<void> {
+export async function deleteDocument(visitor: string, id: string): Promise<void> {
+  if (!isUuid(id)) return;
   const q = await db();
-  await q`DELETE FROM documents WHERE id = ${id}`;
+  await q`DELETE FROM documents WHERE id = ${id} AND visitor_id = ${visitor}`;
 }
 
-export async function countSampleDocuments(): Promise<number> {
+export async function countSampleDocuments(visitor: string): Promise<number> {
   const q = await db();
   const [{ n }] = await q<{ n: number }[]>`
-    SELECT count(*)::int AS n FROM documents WHERE kind = 'sample'`;
+    SELECT count(*)::int AS n FROM documents
+    WHERE kind = 'sample' AND visitor_id = ${visitor}`;
   return n;
 }
 
-export async function deleteSampleDocuments(): Promise<void> {
+export async function deleteSampleDocuments(visitor: string): Promise<void> {
   const q = await db();
-  await q`DELETE FROM documents WHERE kind = 'sample'`;
+  await q`DELETE FROM documents WHERE kind = 'sample' AND visitor_id = ${visitor}`;
 }
 
 // ---- Q&A history ------------------------------------------------------------
@@ -174,7 +208,7 @@ export interface QaRow {
   created_at: string;
 }
 
-export async function saveQa(input: {
+export async function saveQa(visitor: string, input: {
   question: string;
   answer: string;
   cited: CitedChunk[];
@@ -183,29 +217,32 @@ export async function saveQa(input: {
 }): Promise<string> {
   const q = await db();
   const [{ id }] = await q<{ id: string }[]>`
-    INSERT INTO qa_pairs (question, answer, cited, model, latency_ms)
-    VALUES (${input.question}, ${input.answer}, ${q.json(input.cited as never)},
+    INSERT INTO qa_pairs (visitor_id, question, answer, cited, model, latency_ms)
+    VALUES (${visitor}, ${input.question}, ${input.answer}, ${q.json(input.cited as never)},
             ${input.model}, ${input.latencyMs})
     RETURNING id`;
   return id;
 }
 
-export async function listQa(): Promise<QaRow[]> {
+export async function listQa(visitor: string): Promise<QaRow[]> {
   const q = await db();
-  const rows = await q<QaRow[]>`SELECT * FROM qa_pairs ORDER BY created_at DESC`;
+  const rows = await q<QaRow[]>`
+    SELECT * FROM qa_pairs WHERE visitor_id = ${visitor} ORDER BY created_at DESC`;
   return rows.map((r) => ({ ...r, created_at: iso(r.created_at) }));
 }
 
-export async function getQa(id: string): Promise<QaRow | undefined> {
+export async function getQa(visitor: string, id: string): Promise<QaRow | undefined> {
   if (!isUuid(id)) return undefined;
   const q = await db();
-  const [row] = await q<QaRow[]>`SELECT * FROM qa_pairs WHERE id = ${id}`;
+  const [row] = await q<QaRow[]>`
+    SELECT * FROM qa_pairs WHERE id = ${id} AND visitor_id = ${visitor}`;
   return row && { ...row, created_at: iso(row.created_at) };
 }
 
-export async function deleteQa(id: string): Promise<void> {
+export async function deleteQa(visitor: string, id: string): Promise<void> {
+  if (!isUuid(id)) return;
   const q = await db();
-  await q`DELETE FROM qa_pairs WHERE id = ${id}`;
+  await q`DELETE FROM qa_pairs WHERE id = ${id} AND visitor_id = ${visitor}`;
 }
 
 // ---- evals -------------------------------------------------------------------
@@ -229,7 +266,7 @@ export interface EvalResultRow {
 }
 
 /** Saves a finished run and its results in one transaction. */
-export async function saveEvalRun(input: {
+export async function saveEvalRun(visitor: string, input: {
   embeddingModel: string;
   model: string | null;
   results: Array<{
@@ -244,8 +281,8 @@ export async function saveEvalRun(input: {
   const score = input.results.filter((r) => r.passed).length;
   return q.begin(async (tx) => {
     const [{ id }] = await tx<{ id: string }[]>`
-      INSERT INTO eval_runs (embedding_model, model, score, total)
-      VALUES (${input.embeddingModel}, ${input.model}, ${score}, ${input.results.length})
+      INSERT INTO eval_runs (visitor_id, embedding_model, model, score, total)
+      VALUES (${visitor}, ${input.embeddingModel}, ${input.model}, ${score}, ${input.results.length})
       RETURNING id`;
     await tx`INSERT INTO eval_results ${tx(
       input.results.map((r, ord) => ({
@@ -262,16 +299,21 @@ export async function saveEvalRun(input: {
   }) as Promise<string>;
 }
 
-export async function listEvalRuns(): Promise<EvalRunRow[]> {
+export async function listEvalRuns(visitor: string): Promise<EvalRunRow[]> {
   const q = await db();
-  const rows = await q<EvalRunRow[]>`SELECT * FROM eval_runs ORDER BY created_at DESC`;
+  const rows = await q<EvalRunRow[]>`
+    SELECT * FROM eval_runs WHERE visitor_id = ${visitor} ORDER BY created_at DESC`;
   return rows.map((r) => ({ ...r, created_at: iso(r.created_at) }));
 }
 
-export async function getEvalRun(id: string): Promise<EvalRunRow | undefined> {
+export async function getEvalRun(
+  visitor: string,
+  id: string,
+): Promise<EvalRunRow | undefined> {
   if (!isUuid(id)) return undefined;
   const q = await db();
-  const [row] = await q<EvalRunRow[]>`SELECT * FROM eval_runs WHERE id = ${id}`;
+  const [row] = await q<EvalRunRow[]>`
+    SELECT * FROM eval_runs WHERE id = ${id} AND visitor_id = ${visitor}`;
   return row && { ...row, created_at: iso(row.created_at) };
 }
 
@@ -282,7 +324,3 @@ export async function getEvalResults(runId: string): Promise<EvalResultRow[]> {
     FROM eval_results WHERE run_id = ${runId} ORDER BY ord`;
 }
 
-// Malformed ids in URLs would otherwise be a Postgres cast error (500).
-function isUuid(id: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-}

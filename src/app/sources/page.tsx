@@ -6,6 +6,7 @@ import { deleteDocumentAction } from "@/lib/actions";
 import { listDocuments } from "@/lib/db";
 import { format, getDictionary } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
+import { getVisitorId } from "@/lib/visitor";
 import { EmptyState, PageHeader, btnDanger, linkClass } from "@/components/ui";
 
 export default async function Page() {
@@ -46,7 +47,7 @@ async function UploadSection() {
 
 async function DocumentsList() {
   await connection();
-  const docs = await listDocuments();
+  const docs = await listDocuments(await getVisitorId());
   const d = getDictionary(await getLocale());
 
   if (docs.length === 0) {

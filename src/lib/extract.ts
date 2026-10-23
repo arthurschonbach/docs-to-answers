@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { safeFetch } from "./safe-fetch";
 
 const MAX_PAGES = 100;
 
@@ -48,12 +49,14 @@ export async function extractUrlText(raw: string): Promise<UrlExtraction> {
   const timer = setTimeout(() => controller.abort(), 15_000);
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await safeFetch(url, {
       signal: controller.signal,
       headers: { "user-agent": "docs-to-answers/0.1" },
-      redirect: "follow",
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && /^(invalid|blocked)-url$/.test(error.message)) {
+      throw error;
+    }
     throw new Error("fetch-failed");
   } finally {
     clearTimeout(timer);

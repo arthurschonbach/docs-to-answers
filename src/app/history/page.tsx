@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import Link from "next/link";
 import { getDictionary, format, formatDateTime } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
+import { getVisitorId } from "@/lib/visitor";
 import { listQa } from "@/lib/db";
 import { ABSTAIN_MARKER } from "@/lib/llm";
 import { EmptyState, PageHeader } from "@/components/ui";
@@ -22,7 +23,7 @@ export default async function Page() {
 
 async function QaList() {
   await connection();
-  const pairs = await listQa();
+  const pairs = await listQa(await getVisitorId());
   const locale = await getLocale();
   const d = getDictionary(locale);
 

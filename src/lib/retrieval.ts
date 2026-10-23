@@ -16,6 +16,7 @@ export interface RankedChunk {
 
 /** Embed the question and let pgvector rank chunks by cosine similarity. */
 export async function retrieveChunks(
+  visitor: string,
   question: string,
   topK: number = TOP_K,
   floor: number = SIMILARITY_FLOOR,
@@ -26,6 +27,7 @@ export async function retrieveChunks(
     SELECT c.id AS "chunkId", c.document_id AS "documentId", d.name AS "docName",
            c.text, 1 - (c.embedding <=> ${query}::vector) AS score
     FROM chunks c JOIN documents d ON d.id = c.document_id
+    WHERE d.visitor_id = ${visitor}
     ORDER BY c.embedding <=> ${query}::vector
     LIMIT ${topK}`;
   return rows.filter((r) => r.score >= floor);

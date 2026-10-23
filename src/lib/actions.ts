@@ -7,7 +7,10 @@ import { extractPdfText, extractUrlText } from "./extract";
 import { getDictionary } from "./i18n";
 import { getLocale } from "./locale";
 import { ingestDocument } from "./ingest";
+import { INGEST_LIMITS } from "./limits";
+import { hitLimit } from "./rate-limit";
 import { SAMPLE_DOCS } from "./sample-docs";
+import { getClientIp, getVisitorId } from "./visitor";
 
 export interface FormState {
   error: string | null;
@@ -15,6 +18,11 @@ export interface FormState {
 }
 
 const MAX_CHARS = 500_000;
+
+/** Every import embeds text through the shared API key: count it. */
+async function ingestLimited(): Promise<boolean> {
+  return (await hitLimit(await getClientIp(), INGEST_LIMITS)) !== null;
+}
 
 export async function uploadDocumentAction(
   _prev: FormState,
@@ -32,6 +40,9 @@ export async function uploadDocumentAction(
     /\.md$|\.markdown$|\.txt$/i.test(name) || file.type === "text/plain";
   if (!isPdf && !isText) {
     return { error: d.sources.unsupported, notice: null };
+  }
+  if (await ingestLimited()) {
+    return { error: d.sources.rateLimited, notice: null };
   }
 
   let text: string;
@@ -54,7 +65,11 @@ export async function uploadDocumentAction(
   }
 
   try {
-    const result = await ingestDocument({ name, kind: "upload", text });
+    const result = await ingestDocument(await getVisitorId(), {
+      name,
+      kind: "upload",
+      text,
+    });
     refresh();
     return {
       error: null,
@@ -75,6 +90,9 @@ export async function importUrlAction(
   if (!raw) {
     return { error: d.sources.invalidUrl, notice: null };
   }
+  if (await ingestLimited()) {
+    return { error: d.sources.rateLimited, notice: null };
+  }
 
   let title: string;
   let text: string;
@@ -84,6 +102,9 @@ export async function importUrlAction(
     const reason = error instanceof Error ? error.message : "fetch-failed";
     if (reason === "invalid-url") {
       return { error: d.sources.invalidUrl, notice: null };
+    }
+    if (reason === "blocked-url") {
+      return { error: d.sources.blockedUrl, notice: null };
     }
     return { error: d.sources.fetchFailed, notice: null };
   }
@@ -95,7 +116,7 @@ export async function importUrlAction(
   }
 
   try {
-    const result = await ingestDocument({
+    const result = await ingestDocument(await getVisitorId(), {
       name: title,
       kind: "url",
       sourceUrl: raw,
@@ -113,12 +134,16 @@ export async function importUrlAction(
 }
 export async function loadSampleAction(): Promise<FormState> {
   const d = getDictionary(await getLocale());
+  if (await ingestLimited()) {
+    return { error: d.sources.rateLimited, notice: null };
+  }
+  const visitor = await getVisitorId();
   try {
-    await deleteSampleDocuments();
+    await deleteSampleDocuments(visitor);
     // Inlined in src/lib/sample-docs.ts (bundled at build time) instead of
     // data/*.md files, so seeding works on read-only hosts (Vercel).
     for (const doc of SAMPLE_DOCS) {
-      await ingestDocument({ name: doc.name, kind: "sample", text: doc.text });
+      await ingestDocument(visitor, { name: doc.name, kind: "sample", text: doc.text });
     }
   } catch (error) {
     console.error("Sample load failed:", error);
@@ -134,14 +159,14 @@ export async function loadSampleAction(): Promise<FormState> {
 export async function deleteDocumentAction(formData: FormData): Promise<void> {
   const id = String(formData.get("document_id") ?? "");
   if (!id) return;
-  await deleteDocument(id);
+  await deleteDocument(await getVisitorId(), id);
   refresh();
 }
 
 export async function deleteQaAction(formData: FormData): Promise<void> {
   const id = String(formData.get("qa_id") ?? "");
   if (!id) return;
-  await deleteQa(id);
+  await deleteQa(await getVisitorId(), id);
   refresh();
   redirect("/history");
 }
